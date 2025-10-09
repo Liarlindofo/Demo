@@ -1,0 +1,138 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --font-geist-mono: var(----font-geist-mono);
+  --font-geist-sans: var(----font-geist-sans);
+  --radius: var(----radius);
+}
+
+:root {
+  --radius: 0.625rem;
+  /* Drin Color Palette */
+  --drin-dark-green: #001F05;
+  --drin-night: #141415;
+  --drin-black: #000000;
+  --drin-white: #FFFFFF;
+  
+  /* Light theme (not used, but keeping for consistency) */
+  --background: var(--drin-white);
+  --foreground: var(--drin-black);
+  --card: var(--drin-white);
+  --card-foreground: var(--drin-black);
+  --popover: var(--drin-white);
+  --popover-foreground: var(--drin-black);
+  --primary: var(--drin-dark-green);
+  --primary-foreground: var(--drin-white);
+  --secondary: #f1f5f9;
+  --secondary-foreground: var(--drin-black);
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: var(--drin-black);
+  --destructive: #ef4444;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #94a3b8;
+  --chart-1: #3b82f6;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #ef4444;
+  --chart-5: #8b5cf6;
+  --sidebar: var(--drin-white);
+  --sidebar-foreground: var(--drin-black);
+  --sidebar-primary: var(--drin-dark-green);
+  --sidebar-primary-foreground: var(--drin-white);
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: var(--drin-black);
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #94a3b8;
+  --destructive-foreground: var(--drin-white);
+  --font-geist-sans: "Geist Sans", sans-serif;
+  --font-geist-mono: "Geist Mono", monospace;
+}
+
+.dark {
+  /* Drin Dark Theme */
+  --background: var(--drin-black);
+  --foreground: var(--drin-white);
+  --card: var(--drin-night);
+  --card-foreground: var(--drin-white);
+  --popover: var(--drin-night);
+  --popover-foreground: var(--drin-white);
+  --primary: var(--drin-dark-green);
+  --primary-foreground: var(--drin-white);
+  --secondary: var(--drin-night);
+  --secondary-foreground: var(--drin-white);
+  --muted: var(--drin-night);
+  --muted-foreground: #9ca3af;
+  --accent: var(--drin-night);
+  --accent-foreground: var(--drin-white);
+  --destructive: #ef4444;
+  --border: #374151;
+  --input: #374151;
+  --ring: #6b7280;
+  --chart-1: #3b82f6;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #ef4444;
+  --chart-5: #8b5cf6;
+  --sidebar: var(--drin-night);
+  --sidebar-foreground: var(--drin-white);
+  --sidebar-primary: var(--drin-dark-green);
+  --sidebar-primary-foreground: var(--drin-white);
+  --sidebar-accent: var(--drin-night);
+  --sidebar-accent-foreground: var(--drin-white);
+  --sidebar-border: #374151;
+  --sidebar-ring: #6b7280;
+  --destructive-foreground: var(--drin-white);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
