@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { loginSchema, type LoginFormData } from "@/lib/validation";
 import { useNotification } from "@/components/ui/notification";
-import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -52,11 +52,6 @@ export default function LoginPage() {
       <NotificationContainer />
       
       <div className="w-full max-w-md">
-        {/* Back Button */}
-        <Link href="/" className="inline-flex items-center gap-2 text-white/70 hover:text-white mb-8 transition-colors">
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </Link>
 
         <Card className="bg-[#141415] border-[#374151]">
           <CardHeader className="text-center">

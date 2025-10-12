@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -9,6 +8,7 @@ import { CalendarIcon, TrendingUp, ShoppingCart, DollarSign, Users } from "lucid
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { useApp } from "@/contexts/app-context";
 
 // Dados mockados para os gráficos
 const salesData = [
@@ -29,8 +29,19 @@ const dailyOrdersData = [
 ];
 
 export function ReportsSection() {
-  const [date, setDate] = useState<Date | undefined>(new Date());
-  const [selectedPeriod, setSelectedPeriod] = useState("7d");
+  const { selectedStore, selectedPeriod, setSelectedPeriod, selectedDate, setSelectedDate, addToast } = useApp();
+
+  const handlePeriodChange = (period: string) => {
+    setSelectedPeriod(period);
+    addToast(`Período alterado para ${period}`, "info");
+  };
+
+  const handleDateChange = (date: Date | undefined) => {
+    setSelectedDate(date);
+    if (date) {
+      addToast(`Data alterada para ${date.toLocaleDateString('pt-BR')}`, "info");
+    }
+  };
 
   const stats = [
     {
@@ -69,7 +80,12 @@ export function ReportsSection() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Relatórios</h1>
-          <p className="text-gray-400">Acompanhe o desempenho do seu negócio</p>
+          <p className="text-gray-400">
+            {selectedStore 
+              ? `Acompanhe o desempenho da ${selectedStore.name}` 
+              : "Acompanhe o desempenho do seu negócio"
+            }
+          </p>
         </div>
         
         <div className="flex gap-2">
@@ -80,7 +96,7 @@ export function ReportsSection() {
                 key={period}
                 variant={selectedPeriod === period ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setSelectedPeriod(period)}
+                onClick={() => handlePeriodChange(period)}
                 className={`${
                   selectedPeriod === period
                     ? "bg-[#001F05] text-white"
@@ -100,14 +116,14 @@ export function ReportsSection() {
                 className="bg-[#141415] border-[#374151] text-white hover:bg-[#374151]"
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {date ? format(date, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                {selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-[#141415] border-[#374151]" align="end">
               <Calendar
                 mode="single"
-                selected={date}
-                onSelect={setDate}
+                selected={selectedDate}
+                onSelect={handleDateChange}
                 initialFocus
                 className="bg-[#141415] text-white"
               />

@@ -3,6 +3,7 @@
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
+import { useApp } from "@/contexts/app-context";
 
 interface Store {
   id: string;
@@ -43,22 +44,43 @@ const mockStores: Store[] = [
 ];
 
 export function StoreCarousel() {
+  const { selectedStore, setSelectedStore, addToast } = useApp();
+
+  const handleStoreSelect = (store: Store) => {
+    if (store.status === "connected") {
+      setSelectedStore(store);
+      addToast(`Loja ${store.name} selecionada!`, "success");
+    } else {
+      addToast("Esta loja está desconectada", "error");
+    }
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto p-6">
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-white mb-2">Suas Lojas</h2>
-        <p className="text-gray-400 text-sm">Selecione uma loja para visualizar os relatórios</p>
+        <p className="text-gray-400 text-sm">
+          {selectedStore 
+            ? `Loja selecionada: ${selectedStore.name}` 
+            : "Selecione uma loja para visualizar os relatórios"
+          }
+        </p>
       </div>
       
       <Carousel className="w-full">
         <CarouselContent className="-ml-2 md:-ml-4">
           {mockStores.map((store) => (
             <CarouselItem key={store.id} className="pl-2 md:pl-4 md:basis-1/2 lg:basis-1/4">
-              <Card className={`cursor-pointer transition-all duration-200 hover:scale-105 ${
-                store.status === "connected" 
-                  ? "bg-[#141415] border-[#001F05] hover:border-[#001F05]/50" 
-                  : "bg-[#141415] border-[#374151] opacity-60"
-              }`}>
+              <Card 
+                className={`cursor-pointer transition-all duration-200 hover:scale-105 ${
+                  store.status === "connected" 
+                    ? selectedStore?.id === store.id
+                      ? "bg-[#001F05]/30 border-[#001F05] ring-2 ring-[#001F05]/50"
+                      : "bg-[#141415] border-[#001F05] hover:border-[#001F05]/50"
+                    : "bg-[#141415] border-[#374151] opacity-60 cursor-not-allowed"
+                }`}
+                onClick={() => handleStoreSelect(store)}
+              >
                 <CardContent className="p-4">
                   <div className="flex flex-col items-center space-y-3">
                     <div className="relative">

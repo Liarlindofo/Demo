@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Settings, User, Moon, Sun, LogOut } from "lucide-react";
 import { APIConnectionDialog } from "@/components/api-connection-dialog";
+import { Logo } from "@/components/logo";
 
 export default function DashboardLayout({
   children,
@@ -25,15 +26,15 @@ export default function DashboardLayout({
       <div className="bg-black text-white min-h-screen">
         {/* Header */}
         <header className="bg-[#141415] border-b border-[#374151] px-6 py-4">
-          <div className="flex items-center justify-between">
-            {/* Logo */}
-            <Link href="/" className="text-2xl font-bold text-white hover:text-[#001F05] transition-colors">
-              Drin
+          <div className="flex items-center justify-center relative">
+            {/* Logo centralizada */}
+            <Link href="/" className="hover:opacity-80 transition-opacity">
+              <Logo />
             </Link>
 
             {/* Right side - User menu and settings */}
-            <div className="flex items-center gap-4">
-              {/* API Connection Menu (Three dots) */}
+            <div className="absolute right-0 flex items-center gap-4">
+              {/* API Connection Menu (Three lines) */}
               <APIConnectionDialog />
 
               {/* User Avatar Menu */}
