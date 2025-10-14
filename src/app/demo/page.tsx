@@ -40,9 +40,21 @@ function DemoPageContent() {
       {/* Header */}
       <header className="bg-[#141415] border-b border-[#374151] px-6 py-4">
         <div className="flex items-center justify-center relative">
-          {/* Left side - Three lines menu */}
-          <div className="absolute left-0 flex items-center">
+          {/* Left side - Three lines menu and WhatsApp logo */}
+          <div className="absolute left-0 flex items-center gap-4">
             <APIConnectionDialog />
+            {/* WhatsApp Logo */}
+            <button 
+              onClick={() => window.open('/whatsapp-config', '_blank')}
+              className="p-2 hover:bg-[#374151] rounded-lg transition-colors"
+              title="Configurar WhatsApp para relatórios"
+            >
+              <img 
+                src="/whatsapp-logo.svg" 
+                alt="WhatsApp" 
+                className="w-6 h-6"
+              />
+            </button>
           </div>
 
           {/* Logo centralizada */}

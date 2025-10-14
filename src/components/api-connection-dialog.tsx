@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, Plus, Menu } from "lucide-react";
+import { CheckCircle, XCircle, Plus, Menu, MessageSquare } from "lucide-react";
 
 interface API {
   id: string;
@@ -16,7 +16,7 @@ interface API {
   icon: string;
   status: "connected" | "disconnected" | "error";
   lastSync?: string;
-  type: "saipos" | "custom";
+  type: "saipos" | "custom" | "whatsapp";
 }
 
 const availableAPIs: API[] = [
@@ -52,6 +52,14 @@ const availableAPIs: API[] = [
     icon: "🍕",
     status: "disconnected",
     type: "saipos"
+  },
+  {
+    id: "whatsapp-1",
+    name: "WhatsApp Business",
+    description: "Envio automático de relatórios para grupos",
+    icon: "📱",
+    status: "disconnected",
+    type: "whatsapp"
   }
 ];
 
@@ -120,11 +128,69 @@ export function APIConnectionDialog() {
         </DialogHeader>
         
         <div className="space-y-6">
+          {/* WhatsApp Section */}
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <img src="/whatsapp-logo.svg" alt="WhatsApp" className="w-5 h-5" />
+              WhatsApp Business
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 lg:gap-4">
+              {availableAPIs.filter(api => api.type === "whatsapp").map((api) => (
+                <Card 
+                  key={api.id} 
+                  className={`cursor-pointer transition-all duration-200 hover:scale-105 min-h-[120px] ${
+                    api.status === "connected" 
+                      ? "bg-[#001F05]/20 border-[#001F05]" 
+                      : "bg-[#141415] border-[#374151]"
+                  }`}
+                  onClick={() => setSelectedAPI(api)}
+                >
+                  <CardHeader className="pb-3 p-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="text-2xl flex-shrink-0">{api.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <CardTitle className="text-white text-sm sm:text-base truncate">{api.name}</CardTitle>
+                          <CardDescription className="text-gray-400 text-xs sm:text-sm line-clamp-2">
+                            {api.description}
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0">
+                        {getStatusBadge(api.status)}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {api.status === "connected" && api.lastSync && (
+                      <p className="text-xs text-green-400">
+                        Última sincronização: {api.lastSync}
+                      </p>
+                    )}
+                    {api.status === "disconnected" && (
+                      <Button 
+                        size="sm" 
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open('/whatsapp-config', '_blank');
+                        }}
+                      >
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        Configurar
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
           {/* APIs Saipos */}
           <div>
             <h3 className="text-lg font-semibold text-white mb-4">PDVs Saipos</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 lg:gap-4">
-              {availableAPIs.map((api) => (
+              {availableAPIs.filter(api => api.type === "saipos").map((api) => (
                 <Card 
                   key={api.id} 
                   className={`cursor-pointer transition-all duration-200 hover:scale-105 min-h-[120px] ${

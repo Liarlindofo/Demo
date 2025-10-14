@@ -141,15 +141,15 @@
   @apply text-black;
 }
 
-.light .bg-\[#141415\] {
+.light .bg-night {
   @apply bg-gray-100;
 }
 
-.light .bg-\[#374151\] {
+.light .bg-gray-dark {
   @apply bg-gray-200;
 }
 
-.light .border-\[#374151\] {
+.light .border-gray-dark {
   @apply border-gray-300;
 }
 
@@ -157,63 +157,63 @@
   @apply text-gray-600;
 }
 
-.light .hover\:bg-\[#374151\] {
+.light .hover-bg-gray-dark {
   @apply hover:bg-gray-200;
 }
 
-.light .bg-\[#001F05\] {
+.light .bg-drin-green {
   @apply bg-green-600;
 }
 
-.light .hover\:bg-\[#001F05\]\/80 {
+.light .hover-bg-drin-green-80 {
   @apply hover:bg-green-700;
 }
 
-.light .border-\[#001F05\] {
+.light .border-drin-green {
   @apply border-green-600;
 }
 
-.light .text-\[#001F05\] {
+.light .text-drin-green {
   @apply text-green-600;
 }
 
-.light .hover\:text-\[#001F05\] {
+.light .hover-text-drin-green {
   @apply hover:text-green-600;
 }
 
-.light .bg-\[#001F05\]\/20 {
+.light .bg-drin-green-20 {
   @apply bg-green-100;
 }
 
-.light .bg-\[#001F05\]\/30 {
+.light .bg-drin-green-30 {
   @apply bg-green-200;
 }
 
-.light .ring-\[#001F05\]\/50 {
+.light .ring-drin-green-50 {
   @apply ring-green-300;
 }
 
-.light .border-\[#001F05\]\/20 {
+.light .border-drin-green-20 {
   @apply border-green-200;
 }
 
-.light .border-\[#001F05\]\/50 {
+.light .border-drin-green-50 {
   @apply border-green-300;
 }
 
-.light .hover\:border-\[#001F05\]\/50 {
+.light .hover-border-drin-green-50 {
   @apply hover:border-green-300;
 }
 
-.light .focus\:border-\[#001F05\] {
+.light .focus-border-drin-green {
   @apply focus:border-green-600;
 }
 
-.light .bg-\[#6b7280\] {
+.light .bg-gray-medium {
   @apply bg-gray-300;
 }
 
-.light .border-\[#6b7280\] {
+.light .border-gray-medium {
   @apply border-gray-400;
 }
 
