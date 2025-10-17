@@ -29,7 +29,7 @@ export const registerSchema = z.object({
 
 // Schema de validação para login
 export const loginSchema = z.object({
-  email: z.string().email("E-mail inválido"),
+  email: z.string().min(1, "Login é obrigatório"),
   password: z.string().min(1, "Senha é obrigatória"),
 });
 

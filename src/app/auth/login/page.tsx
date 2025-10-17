@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { loginSchema, type LoginFormData } from "@/lib/validation";
 import { useNotification } from "@/components/ui/notification";
 import { Eye, EyeOff } from "lucide-react";
+import { AuthService } from "@/lib/auth-service";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -28,30 +29,31 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      // Simular chamada à API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Tentar autenticar com o banco de dados
+      const user = await AuthService.validateCredentials(data);
       
-      // Verificar credenciais de admin
-      if (data.email === "DrinAdmin2157" && data.password === "21571985") {
-        showNotification("Login de administrador realizado com sucesso!", "success");
+      if (user) {
+        showNotification(`Bem-vindo, ${user.fullName || user.username}!`, "success");
         
         // Redirecionar para dashboard
         setTimeout(() => {
           window.location.href = "/dashboard";
         }, 2000);
       } else {
-        // Aqui você faria a chamada real para a API de usuários normais
-        console.log("Login data:", data);
-        
-        showNotification("Login realizado com sucesso!", "success");
-        
-        // Redirecionar diretamente para dashboard (sem OTP)
-        setTimeout(() => {
-          window.location.href = "/dashboard";
-        }, 2000);
+        // Fallback para credenciais hardcoded (caso o banco não esteja configurado)
+        if (data.email === "DrinAdmin2157" && data.password === "21571985") {
+          showNotification("Login de administrador realizado com sucesso!", "success");
+          
+          setTimeout(() => {
+            window.location.href = "/dashboard";
+          }, 2000);
+        } else {
+          showNotification("Login ou senha incorretos", "error");
+        }
       }
     } catch (error) {
-      showNotification("E-mail ou senha incorretos", "error");
+      console.error('Erro no login:', error);
+      showNotification("Erro interno. Tente novamente.", "error");
     } finally {
       setIsLoading(false);
     }
@@ -72,13 +74,13 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              {/* Email */}
+              {/* Login */}
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-white">E-mail</Label>
+                <Label htmlFor="email" className="text-white">Login</Label>
                 <Input
                   id="email"
-                  type="email"
-                  placeholder="seu@email.com"
+                  type="text"
+                  placeholder="DrinAdmin2157 ou seu@email.com"
                   className="bg-[#374151] border-[#6b7280] text-white placeholder:text-gray-400 focus:border-[#001F05]"
                   {...register("email")}
                 />

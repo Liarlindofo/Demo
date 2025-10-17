@@ -13,3 +13,61 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  username  String     @unique
+  password  String
+  fullName  String?
+  cnpj      String?
+  birthDate DateTime?
+  isAdmin   Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  stores    Store[]
+
+  @@map("users")
+}
+
+model Store {
+  id          String      @id @default(cuid())
+  name        String
+  address     String?
+  phone       String?
+  cnpj        String?
+  isActive    Boolean     @default(true)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  salesData   SalesData[]
+
+  @@map("stores")
+}
+
+model SalesData {
+  id              String       @id @default(cuid())
+  storeId         String
+  store           Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  date            DateTime
+  totalSales      Float
+  totalOrders     Int
+  averageTicket   Float
+  uniqueCustomers Int
+  createdAt       DateTime     @default(now())
+  topProducts     TopProduct[]
+
+  @@map("sales_data")
+}
+
+model TopProduct {
+  id        String    @id @default(cuid())
+  salesId   String
+  salesData SalesData @relation(fields: [salesId], references: [id], onDelete: Cascade)
+  name      String
+  quantity  Int
+  revenue   Float
+
+  @@map("top_products")
+}
