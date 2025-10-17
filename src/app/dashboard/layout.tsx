@@ -29,6 +29,11 @@ export default function DashboardLayout({
           {/* Header */}
           <header className="bg-[#141415] border-b border-[#374151] px-6 py-4">
             <div className="flex items-center justify-center relative">
+              {/* Left side - API Connection Menu */}
+              <div className="absolute left-0 flex items-center gap-4">
+                <APIConnectionDialog />
+              </div>
+
               {/* Logo centralizada */}
               <Link href="/" className="hover:opacity-80 transition-opacity">
                 <Logo />
@@ -36,9 +41,6 @@ export default function DashboardLayout({
 
               {/* Right side - User menu and settings */}
               <div className="absolute right-0 flex items-center gap-4">
-                {/* API Connection Menu (Three lines) */}
-                <APIConnectionDialog />
-
                 {/* User Avatar Menu */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

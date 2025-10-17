@@ -80,7 +80,7 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="text"
-                  placeholder="DrinAdmin2157 ou seu@email.com"
+                  placeholder="seu@email.com"
                   className="bg-[#374151] border-[#6b7280] text-white placeholder:text-gray-400 focus:border-[#001F05]"
                   {...register("email")}
                 />
