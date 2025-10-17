@@ -18,24 +18,14 @@ export default function Home() {
             Um novo universo para o seu negócio começa aqui
           </h1>
 
-          {/* CTA Buttons */}
-          <div className="pt-6 flex flex-col sm:flex-row gap-4 items-center justify-center">
+          {/* CTA Button */}
+          <div className="pt-6 flex justify-center">
             <Link href="/auth/login">
               <Button 
                 size="lg" 
                 className="bg-[#001F05] hover:bg-[#001F05]/80 text-white px-12 py-4 text-base font-semibold rounded-full transition-all duration-300 hover:scale-105 shadow-lg border border-[#001F05]/20"
               >
                 Entrar
-              </Button>
-            </Link>
-            
-            <Link href="/demo">
-              <Button 
-                size="lg" 
-                variant="outline"
-                className="border-[#374151] text-white hover:bg-[#374151] px-12 py-4 text-base font-semibold rounded-full transition-all duration-300 hover:scale-105 shadow-lg"
-              >
-                Ver Demo
               </Button>
             </Link>
           </div>

@@ -31,15 +31,25 @@ export default function LoginPage() {
       // Simular chamada à API
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Aqui você faria a chamada real para a API
-      console.log("Login data:", data);
-      
-      showNotification("Login realizado com sucesso!", "success");
-      
-      // Redirecionar diretamente para dashboard (sem OTP)
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 2000);
+      // Verificar credenciais de admin
+      if (data.email === "DrinAdmin2157" && data.password === "21571985") {
+        showNotification("Login de administrador realizado com sucesso!", "success");
+        
+        // Redirecionar para dashboard
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 2000);
+      } else {
+        // Aqui você faria a chamada real para a API de usuários normais
+        console.log("Login data:", data);
+        
+        showNotification("Login realizado com sucesso!", "success");
+        
+        // Redirecionar diretamente para dashboard (sem OTP)
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 2000);
+      }
     } catch (error) {
       showNotification("E-mail ou senha incorretos", "error");
     } finally {

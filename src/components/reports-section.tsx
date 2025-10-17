@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -9,17 +10,9 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { useApp } from "@/contexts/app-context";
+import { saiposAPI, SaiposSalesData } from "@/lib/saipos-api";
 
-// Dados mockados para os gráficos
-const salesData = [
-  { name: "Jan", vendas: 4000, pedidos: 240 },
-  { name: "Fev", vendas: 3000, pedidos: 139 },
-  { name: "Mar", vendas: 2000, pedidos: 980 },
-  { name: "Abr", vendas: 2780, pedidos: 390 },
-  { name: "Mai", vendas: 1890, pedidos: 480 },
-  { name: "Jun", vendas: 2390, pedidos: 380 },
-];
-
+// Dados mockados para fallback
 const dailyOrdersData = [
   { hora: "00:00", pedidos: 0 },
   { hora: "06:00", pedidos: 2 },
@@ -30,6 +23,9 @@ const dailyOrdersData = [
 
 export function ReportsSection() {
   const { selectedStore, selectedPeriod, setSelectedPeriod, selectedDate, setSelectedDate, addToast } = useApp();
+  const [salesData, setSalesData] = useState<SaiposSalesData[]>([]);
+  const [dailyData, setDailyData] = useState<SaiposSalesData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handlePeriodChange = (period: string) => {
     setSelectedPeriod(period);
@@ -40,34 +36,117 @@ export function ReportsSection() {
     setSelectedDate(date);
     if (date) {
       addToast(`Data alterada para ${date.toLocaleDateString('pt-BR')}`, "info");
+      loadDailyData(date);
     }
   };
 
+  // Função para carregar dados da API da Saipos
+  const loadSalesData = async () => {
+    setIsLoading(true);
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      
+      // Calcular período baseado na seleção
+      switch (selectedPeriod) {
+        case '7d':
+          startDate.setDate(endDate.getDate() - 7);
+          break;
+        case '30d':
+          startDate.setDate(endDate.getDate() - 30);
+          break;
+        case '90d':
+          startDate.setDate(endDate.getDate() - 90);
+          break;
+        default:
+          startDate.setDate(endDate.getDate() - 30);
+      }
+
+      const data = await saiposAPI.getSalesData(
+        startDate.toISOString().split('T')[0],
+        endDate.toISOString().split('T')[0]
+      );
+      
+      setSalesData(data);
+      addToast("Dados atualizados com sucesso!", "success");
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+      addToast("Erro ao carregar dados da API", "error");
+      // Usar dados mockados em caso de erro
+      setSalesData([
+        { date: "2025-01-01", totalSales: 4000, totalOrders: 240, averageTicket: 16.67, uniqueCustomers: 180, topProducts: [] },
+        { date: "2025-01-02", totalSales: 3000, totalOrders: 139, averageTicket: 21.58, uniqueCustomers: 120, topProducts: [] },
+        { date: "2025-01-03", totalSales: 2000, totalOrders: 98, averageTicket: 20.41, uniqueCustomers: 85, topProducts: [] },
+        { date: "2025-01-04", totalSales: 2780, totalOrders: 139, averageTicket: 20.00, uniqueCustomers: 110, topProducts: [] },
+        { date: "2025-01-05", totalSales: 1890, totalOrders: 95, averageTicket: 19.89, uniqueCustomers: 75, topProducts: [] },
+        { date: "2025-01-06", totalSales: 2390, totalOrders: 120, averageTicket: 19.92, uniqueCustomers: 90, topProducts: [] },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Função para carregar dados diários
+  const loadDailyData = async (date: Date) => {
+    try {
+      const data = await saiposAPI.getDailyReport(date.toISOString().split('T')[0]);
+      setDailyData(data);
+    } catch (error) {
+      console.error('Erro ao carregar dados diários:', error);
+      // Usar dados mockados em caso de erro
+      setDailyData({
+        date: date.toISOString().split('T')[0],
+        totalSales: 2450,
+        totalOrders: 47,
+        averageTicket: 52.13,
+        uniqueCustomers: 23,
+        topProducts: [
+          { name: "Pizza Margherita", quantity: 12, revenue: 240 },
+          { name: "Hambúrguer Clássico", quantity: 8, revenue: 160 },
+          { name: "Coca-Cola", quantity: 15, revenue: 75 }
+        ]
+      });
+    }
+  };
+
+  // Carregar dados quando o componente montar ou o período mudar
+  useEffect(() => {
+    loadSalesData();
+  }, [selectedPeriod]);
+
+  // Carregar dados diários quando uma data for selecionada
+  useEffect(() => {
+    if (selectedDate) {
+      loadDailyData(selectedDate);
+    }
+  }, [selectedDate]);
+
+  // Estatísticas dinâmicas baseadas nos dados da API
   const stats = [
     {
       title: "Vendas Hoje",
-      value: "R$ 2.450,00",
+      value: dailyData ? `R$ ${dailyData.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "R$ 0,00",
       change: "+12.5%",
       changeType: "positive" as const,
       icon: DollarSign,
     },
     {
       title: "Pedidos Hoje",
-      value: "47",
+      value: dailyData ? dailyData.totalOrders.toString() : "0",
       change: "+8.2%",
       changeType: "positive" as const,
       icon: ShoppingCart,
     },
     {
       title: "Ticket Médio",
-      value: "R$ 52,13",
+      value: dailyData ? `R$ ${dailyData.averageTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "R$ 0,00",
       change: "-2.1%",
       changeType: "negative" as const,
       icon: TrendingUp,
     },
     {
       title: "Clientes Únicos",
-      value: "23",
+      value: dailyData ? dailyData.uniqueCustomers.toString() : "0",
       change: "+15.3%",
       changeType: "positive" as const,
       icon: Users,
@@ -170,7 +249,11 @@ export function ReportsSection() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={salesData}>
+              <LineChart data={salesData.map(item => ({
+                name: format(new Date(item.date), 'dd/MM'),
+                vendas: item.totalSales,
+                pedidos: item.totalOrders
+              }))}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="name" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
@@ -204,7 +287,10 @@ export function ReportsSection() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dailyOrdersData}>
+              <BarChart data={dailyData ? dailyData.topProducts.map((product, index) => ({
+                hora: product.name.substring(0, 8) + "...",
+                pedidos: product.quantity
+              })) : dailyOrdersData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="hora" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
