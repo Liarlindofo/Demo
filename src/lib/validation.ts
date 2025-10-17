@@ -56,7 +56,7 @@ export function validateCNPJ(cnpj: string): boolean {
     sum += parseInt(cleanCNPJ[i]) * weight;
     weight = weight === 2 ? 9 : weight - 1;
   }
-  let digit1 = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  const digit1 = sum % 11 < 2 ? 0 : 11 - (sum % 11);
   
   if (parseInt(cleanCNPJ[12]) !== digit1) return false;
   
@@ -67,7 +67,7 @@ export function validateCNPJ(cnpj: string): boolean {
     sum += parseInt(cleanCNPJ[i]) * weight;
     weight = weight === 2 ? 9 : weight - 1;
   }
-  let digit2 = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  const digit2 = sum % 11 < 2 ? 0 : 11 - (sum % 11);
   
   return parseInt(cleanCNPJ[13]) === digit2;
 }

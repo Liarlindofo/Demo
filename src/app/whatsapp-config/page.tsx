@@ -225,7 +225,7 @@ function WhatsAppConfigContent() {
                     placeholder="Digite o template da mensagem..."
                   />
                   <p className="text-xs text-gray-400">
-                    Use variáveis como: {`{{storeName}}`, `{{date}}`, `{{totalSales}}`, `{{totalCustomers}}`, `{{growth}}`, `{{topProducts}}`, `{{summary}}`}
+                    Use variáveis como: {`{{storeName}}`}, {`{{date}}`}, {`{{totalSales}}`}, {`{{totalCustomers}}`}, {`{{growth}}`}, {`{{topProducts}}`}, {`{{summary}}`}
                   </p>
                 </div>
 
