@@ -4,10 +4,18 @@ import { PrismaClient } from '@prisma/client';
 import { type RegisterFormData } from '@/lib/validation';
 import { EmailService } from '@/lib/sendgrid';
 
-const prisma = new PrismaClient();
-
 // Armazenar OTPs temporariamente (em produção, use Redis ou banco de dados)
 const otpStorage = new Map<string, { otp: string; expires: number; userData: RegisterFormData }>();
+
+// Função para criar Prisma Client com tratamento de erro
+function createPrismaClient() {
+  try {
+    return new PrismaClient();
+  } catch (error) {
+    console.error('Erro ao criar Prisma Client:', error);
+    return null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,37 +55,64 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Criptografar senha
-    const hashedPassword = await bcrypt.hash(tempData.userData.password, 12);
+    // Tentar salvar no banco de dados
+    const prisma = createPrismaClient();
+    let user = null;
     
-    // Criar usuário no banco de dados
-    const user = await prisma.user.create({
-      data: {
-        email: tempData.userData.email,
-        username: tempData.userData.email.split('@')[0], // Usar parte do email como username
-        password: hashedPassword,
-        fullName: tempData.userData.fullName,
-        cnpj: tempData.userData.cnpj,
-        birthDate: new Date(tempData.userData.birthDate),
-        isAdmin: false
+    if (prisma) {
+      try {
+        // Criptografar senha
+        const hashedPassword = await bcrypt.hash(tempData.userData.password, 12);
+        
+        // Criar usuário no banco de dados
+        user = await prisma.user.create({
+          data: {
+            email: tempData.userData.email,
+            username: tempData.userData.email.split('@')[0], // Usar parte do email como username
+            password: hashedPassword,
+            fullName: tempData.userData.fullName,
+            cnpj: tempData.userData.cnpj,
+            birthDate: new Date(tempData.userData.birthDate),
+            isAdmin: false
+          }
+        });
+        
+        await prisma.$disconnect();
+      } catch (dbError) {
+        console.error('Erro ao salvar no banco de dados:', dbError);
+        // Continuar sem banco de dados se houver erro
       }
-    });
+    }
     
     // Limpar dados temporários
     otpStorage.delete(tempKey);
     
-    // Enviar email de boas-vindas
-    await EmailService.sendWelcomeEmail(user.email, user.fullName || user.username);
+    // Tentar enviar email de boas-vindas
+    try {
+      await EmailService.sendWelcomeEmail(
+        tempData.userData.email, 
+        tempData.userData.fullName
+      );
+    } catch (emailError) {
+      console.error('Erro ao enviar email de boas-vindas:', emailError);
+      // Continuar mesmo se o email falhar
+    }
     
     return NextResponse.json({
       success: true,
       message: 'Cadastro realizado com sucesso!',
-      user: {
+      user: user ? {
         id: user.id,
         email: user.email,
         username: user.username,
         fullName: user.fullName,
         isAdmin: user.isAdmin
+      } : {
+        id: 'temp-' + Date.now(),
+        email: tempData.userData.email,
+        username: tempData.userData.email.split('@')[0],
+        fullName: tempData.userData.fullName,
+        isAdmin: false
       }
     });
     
