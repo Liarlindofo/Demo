@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Settings, User, Moon, Sun, LogOut, MessageCircle, MessageSquare } from "lucide-react";
+import { Settings, User, Moon, Sun, LogOut, MessageCircle, MessageSquare } from "lucide-react";
 import { APIConnectionDialog } from "@/components/api-connection-dialog";
 import { Logo } from "@/components/logo";
 import { AppProvider } from "@/contexts/app-context";

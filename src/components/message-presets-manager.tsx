@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { MessagePresetService, MessagePreset } from "@/lib/message-preset-service";
 import { useNotification } from "@/components/ui/notification";
-import { Plus, Edit, Trash2, Copy, Download, Upload, MessageSquare, Calendar, Clock } from "lucide-react";
+import { Plus, Edit, Trash2, Copy, Download, Upload, MessageSquare } from "lucide-react";
 
 export default function MessagePresetsManager() {
   const [presets, setPresets] = useState<MessagePreset[]>([]);
@@ -57,6 +57,7 @@ export default function MessagePresetsManager() {
       resetForm();
       setIsDialogOpen(false);
     } catch (error) {
+      console.error('Erro ao salvar preset:', error);
       showNotification("Erro ao salvar preset", "error");
     }
   };
@@ -122,6 +123,7 @@ export default function MessagePresetsManager() {
           showNotification("Erro ao importar presets", "error");
         }
       } catch (error) {
+        console.error('Erro ao importar presets:', error);
         showNotification("Arquivo inválido", "error");
       }
     };

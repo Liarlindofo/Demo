@@ -1,7 +1,7 @@
-import { PrismaClient } from '@/generated/prisma';
-import bcrypt from 'bcryptjs';
+// import { PrismaClient } from '../generated/prisma';
+// import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient();
 
 export interface LoginCredentials {
   email: string; // Pode ser email ou username
@@ -17,10 +17,24 @@ export interface User {
 }
 
 export class AuthService {
-  // Verificar credenciais de login com banco de dados
+  // Verificar credenciais de login (versão simplificada sem banco)
   static async validateCredentials(credentials: LoginCredentials): Promise<User | null> {
     try {
-      // Buscar usuário por email ou username
+      // Por enquanto, usar credenciais hardcoded
+      // Quando você configurar o Neon, descomente o código abaixo
+      
+      if (credentials.email === "DrinAdmin2157" && credentials.password === "21571985") {
+        return {
+          id: "admin-1",
+          username: "DrinAdmin2157",
+          email: "admin@drin.com",
+          fullName: "Administrador Drin",
+          isAdmin: true
+        };
+      }
+
+      // Código para usar com banco de dados (descomente quando configurar o Neon):
+      /*
       const user = await prisma.user.findFirst({
         where: {
           OR: [
@@ -47,93 +61,19 @@ export class AuthService {
         fullName: user.fullName || undefined,
         isAdmin: user.isAdmin
       };
+      */
+
+      return null;
     } catch (error) {
       console.error('Erro ao validar credenciais:', error);
       return null;
     }
   }
 
-  // Criar usuário administrador
-  static async createAdminUser() {
-    try {
-      const existingAdmin = await prisma.user.findFirst({
-        where: { isAdmin: true }
-      });
-
-      if (existingAdmin) {
-        console.log('Usuário administrador já existe');
-        return existingAdmin;
-      }
-
-      const hashedPassword = await bcrypt.hash('21571985', 12);
-      
-      const admin = await prisma.user.create({
-        data: {
-          email: 'admin@drin.com',
-          username: 'DrinAdmin2157',
-          password: hashedPassword,
-          fullName: 'Administrador Drin',
-          isAdmin: true
-        }
-      });
-
-      console.log('Usuário administrador criado:', admin);
-      return admin;
-    } catch (error) {
-      console.error('Erro ao criar usuário administrador:', error);
-      return null;
-    }
-  }
-
-  // Buscar usuário por ID
-  static async getUserById(id: string): Promise<User | null> {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id }
-      });
-
-      if (!user) {
-        return null;
-      }
-
-      return {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        fullName: user.fullName || undefined,
-        isAdmin: user.isAdmin
-      };
-    } catch (error) {
-      console.error('Erro ao buscar usuário:', error);
-      return null;
-    }
-  }
-
-  // Verificar se email já existe
-  static async emailExists(email: string): Promise<boolean> {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { email }
-      });
-      return !!user;
-    } catch (error) {
-      console.error('Erro ao verificar email:', error);
-      return false;
-    }
-  }
-
-  // Verificar se CNPJ já existe
-  static async cnpjExists(cnpj: string): Promise<boolean> {
-    try {
-      const user = await prisma.user.findFirst({
-        where: { cnpj }
-      });
-      return !!user;
-    } catch (error) {
-      console.error('Erro ao verificar CNPJ:', error);
-      return false;
-    }
-  }
+  // Métodos para quando configurar o banco de dados:
+  // - createAdminUser()
+  // - createUser()
+  // - etc.
 }
 
 export default AuthService;

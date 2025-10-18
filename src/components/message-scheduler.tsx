@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessagePresetService, MessagePreset, ScheduledMessage } from "@/lib/message-preset-service";
 import { useNotification } from "@/components/ui/notification";
-import { Plus, Calendar, Clock, Send, X, Edit, Trash2, Play, Pause } from "lucide-react";
+import { Plus, Calendar, Clock, Send, X, Edit } from "lucide-react";
 
 export default function MessageScheduler() {
   const [presets, setPresets] = useState<MessagePreset[]>([]);
@@ -84,6 +84,7 @@ export default function MessageScheduler() {
       resetForm();
       setIsDialogOpen(false);
     } catch (error) {
+      console.error('Erro ao agendar mensagem:', error);
       showNotification("Erro ao agendar mensagem", "error");
     }
   };
@@ -98,14 +99,6 @@ export default function MessageScheduler() {
       recipients: scheduled.recipients?.join(', ') || ''
     });
     setIsDialogOpen(true);
-  };
-
-  const handleDelete = (id: string) => {
-    if (confirm("Tem certeza que deseja excluir este agendamento?")) {
-      MessagePresetService.deleteScheduledMessage(id);
-      showNotification("Agendamento excluído com sucesso!", "success");
-      loadData();
-    }
   };
 
   const handleCancel = (id: string) => {
