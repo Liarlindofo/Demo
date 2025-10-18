@@ -11,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { loginSchema, type LoginFormData } from "@/lib/validation";
 import { useNotification } from "@/components/ui/notification";
 import { Eye, EyeOff } from "lucide-react";
-import { AuthService } from "@/lib/auth-service";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -29,27 +28,29 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      // Tentar autenticar com o banco de dados
-      const user = await AuthService.validateCredentials(data);
-      
-      if (user) {
-        showNotification(`Bem-vindo, ${user.fullName || user.username}!`, "success");
+      // Chamar API de login
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification(result.message, "success");
         
-        // Redirecionar para dashboard
+        // Salvar tempKey para verificação
+        localStorage.setItem('loginTempKey', result.tempKey);
+        
+        // Redirecionar para verificação de OTP
         setTimeout(() => {
-          window.location.href = "/dashboard";
+          window.location.href = "/auth/verify-login-otp";
         }, 2000);
       } else {
-        // Fallback para credenciais hardcoded (caso o banco não esteja configurado)
-        if (data.email === "DrinAdmin2157" && data.password === "21571985") {
-          showNotification("Login de administrador realizado com sucesso!", "success");
-          
-          setTimeout(() => {
-            window.location.href = "/dashboard";
-          }, 2000);
-        } else {
-          showNotification("Login ou senha incorretos", "error");
-        }
+        showNotification(result.error || "Erro no login", "error");
       }
     } catch (error) {
       console.error('Erro no login:', error);

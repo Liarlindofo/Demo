@@ -54,19 +54,32 @@ export default function RegisterPage() {
         return;
       }
 
-      // Simular cadastro (sem OTP por enquanto)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Aqui você faria a chamada real para a API de cadastro
-      console.log("Cadastro realizado:", data);
-      
-      showNotification("Cadastro realizado com sucesso!", "success");
-      
-      // Redirecionar diretamente para o dashboard
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 2000);
+      // Chamar API de cadastro
+      const response = await fetch('/api/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification(result.message, "success");
+        
+        // Salvar tempKey para verificação
+        localStorage.setItem('tempKey', result.tempKey);
+        
+        // Redirecionar para verificação de OTP
+        setTimeout(() => {
+          window.location.href = "/auth/verify-otp";
+        }, 2000);
+      } else {
+        showNotification(result.error || "Erro ao realizar cadastro", "error");
+      }
     } catch (error) {
+      console.error('Erro no cadastro:', error);
       showNotification("Erro ao realizar cadastro. Tente novamente.", "error");
     } finally {
       setIsLoading(false);
