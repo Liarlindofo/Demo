@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@/generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import { registerSchema, type RegisterFormData } from '@/lib/validation';
 import { EmailService } from '@/lib/sendgrid';
 

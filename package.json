@@ -10,7 +10,8 @@
     "db:init": "tsx scripts/init-db.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "vercel-build": "npm run db:generate && npm run build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
