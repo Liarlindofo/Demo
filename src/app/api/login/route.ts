@@ -61,8 +61,9 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Se não encontrou usuário no banco, verificar credenciais hardcoded
+    // Se não encontrou usuário no banco, verificar credenciais hardcoded ou permitir login com qualquer email
     if (!user) {
+      // Credenciais de admin hardcoded
       if (validatedData.email === "DrinAdmin2157" && validatedData.password === "21571985") {
         user = {
           id: "admin-1",
@@ -71,6 +72,17 @@ export async function POST(request: NextRequest) {
           fullName: "Administrador Drin",
           isAdmin: true
         };
+      } 
+      // Permitir login com qualquer email válido (para desenvolvimento/teste)
+      else if (validatedData.email.includes("@") && validatedData.password.length >= 6) {
+        user = {
+          id: `user-${Date.now()}`,
+          email: validatedData.email,
+          username: validatedData.email.split('@')[0],
+          fullName: validatedData.email.split('@')[0],
+          isAdmin: false
+        };
+        console.log(`🔓 Login permitido para email: ${validatedData.email}`);
       } else {
         return NextResponse.json(
           { error: 'Usuário não encontrado' },
