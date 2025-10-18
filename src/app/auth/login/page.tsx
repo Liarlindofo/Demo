@@ -48,10 +48,13 @@ export default function LoginPage() {
         // Redirecionar baseado no resultado do email
         setTimeout(() => {
           if (result.emailSent) {
+            // Email funcionou, ir para página de verificação normal
             window.location.href = "/auth/verify-login-otp";
           } else if (result.debugUrl) {
+            // Email falhou, ir para página de debug
             window.location.href = result.debugUrl;
           } else {
+            // Fallback para página de verificação normal
             window.location.href = "/auth/verify-login-otp";
           }
         }, 2000);

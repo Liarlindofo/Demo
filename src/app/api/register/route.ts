@@ -76,10 +76,8 @@ export async function POST(request: NextRequest) {
       userData: validatedData
     });
     
-    // Tentar enviar OTP por email (múltiplas opções)
+    // Tentar enviar OTP por email
     let emailSent = false;
-    
-    // Tentar SendGrid primeiro
     try {
       emailSent = await EmailService.sendOTP(
         validatedData.email,
@@ -87,23 +85,10 @@ export async function POST(request: NextRequest) {
         validatedData.fullName
       );
     } catch (emailError) {
-      console.error('Erro ao enviar email via SendGrid:', emailError);
+      console.error('Erro ao enviar email:', emailError);
     }
     
-    // Se SendGrid falhou, tentar Resend
-    if (!emailSent) {
-      try {
-        emailSent = await EmailService.sendOTPWithResend(
-          validatedData.email,
-          otp,
-          validatedData.fullName
-        );
-      } catch (emailError) {
-        console.error('Erro ao enviar email via Resend:', emailError);
-      }
-    }
-    
-    // Se ambos falharam, mostrar OTP no console
+    // Se o email falhou, mostrar OTP no console
     if (!emailSent) {
       console.log(`\n🔑 ===== OTP GERADO =====`);
       console.log(`📧 Email: ${validatedData.email}`);

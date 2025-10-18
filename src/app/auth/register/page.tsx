@@ -74,10 +74,13 @@ export default function RegisterPage() {
         // Redirecionar baseado no resultado do email
         setTimeout(() => {
           if (result.emailSent) {
+            // Email funcionou, ir para página de verificação normal
             window.location.href = "/auth/verify-otp";
           } else if (result.debugUrl) {
+            // Email falhou, ir para página de debug
             window.location.href = result.debugUrl;
           } else {
+            // Fallback para página de verificação normal
             window.location.href = "/auth/verify-otp";
           }
         }, 2000);
