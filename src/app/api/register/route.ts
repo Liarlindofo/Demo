@@ -76,8 +76,10 @@ export async function POST(request: NextRequest) {
       userData: validatedData
     });
     
-    // Tentar enviar OTP por email (se SendGrid estiver configurado)
+    // Tentar enviar OTP por email (múltiplas opções)
     let emailSent = false;
+    
+    // Tentar SendGrid primeiro
     try {
       emailSent = await EmailService.sendOTP(
         validatedData.email,
@@ -85,13 +87,29 @@ export async function POST(request: NextRequest) {
         validatedData.fullName
       );
     } catch (emailError) {
-      console.error('Erro ao enviar email:', emailError);
-      // Continuar mesmo se o email falhar
+      console.error('Erro ao enviar email via SendGrid:', emailError);
     }
     
-    // Se o email falhou, simular sucesso para desenvolvimento
+    // Se SendGrid falhou, tentar Resend
     if (!emailSent) {
-      console.log(`OTP para ${validatedData.email}: ${otp}`);
+      try {
+        emailSent = await EmailService.sendOTPWithResend(
+          validatedData.email,
+          otp,
+          validatedData.fullName
+        );
+      } catch (emailError) {
+        console.error('Erro ao enviar email via Resend:', emailError);
+      }
+    }
+    
+    // Se ambos falharam, mostrar OTP no console
+    if (!emailSent) {
+      console.log(`\n🔑 ===== OTP GERADO =====`);
+      console.log(`📧 Email: ${validatedData.email}`);
+      console.log(`🔢 Código: ${otp}`);
+      console.log(`⏰ Expira em: 10 minutos`);
+      console.log(`========================\n`);
     }
     
     return NextResponse.json({
@@ -99,7 +117,9 @@ export async function POST(request: NextRequest) {
       message: emailSent 
         ? 'Código de verificação enviado para seu email'
         : 'Código de verificação gerado (verifique o console)',
-      tempKey // Usado para verificar o OTP
+      tempKey, // Usado para verificar o OTP
+      emailSent,
+      debugUrl: !emailSent ? `/auth/debug-otp?email=${encodeURIComponent(validatedData.email)}&otp=${otp}` : null
     });
     
   } catch (error) {

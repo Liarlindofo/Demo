@@ -45,9 +45,15 @@ export default function LoginPage() {
         // Salvar tempKey para verificação
         localStorage.setItem('loginTempKey', result.tempKey);
         
-        // Redirecionar para verificação de OTP
+        // Redirecionar baseado no resultado do email
         setTimeout(() => {
-          window.location.href = "/auth/verify-login-otp";
+          if (result.emailSent) {
+            window.location.href = "/auth/verify-login-otp";
+          } else if (result.debugUrl) {
+            window.location.href = result.debugUrl;
+          } else {
+            window.location.href = "/auth/verify-login-otp";
+          }
         }, 2000);
       } else {
         showNotification(result.error || "Erro no login", "error");

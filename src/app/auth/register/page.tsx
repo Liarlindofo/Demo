@@ -71,9 +71,15 @@ export default function RegisterPage() {
         // Salvar tempKey para verificação
         localStorage.setItem('tempKey', result.tempKey);
         
-        // Redirecionar para verificação de OTP
+        // Redirecionar baseado no resultado do email
         setTimeout(() => {
-          window.location.href = "/auth/verify-otp";
+          if (result.emailSent) {
+            window.location.href = "/auth/verify-otp";
+          } else if (result.debugUrl) {
+            window.location.href = result.debugUrl;
+          } else {
+            window.location.href = "/auth/verify-otp";
+          }
         }, 2000);
       } else {
         showNotification(result.error || "Erro ao realizar cadastro", "error");
