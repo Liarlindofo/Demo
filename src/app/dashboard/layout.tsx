@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Settings, User, Moon, Sun, LogOut, MessageCircle } from "lucide-react";
+import { MoreHorizontal, Settings, User, Moon, Sun, LogOut, MessageCircle, MessageSquare } from "lucide-react";
 import { APIConnectionDialog } from "@/components/api-connection-dialog";
 import { Logo } from "@/components/logo";
 import { AppProvider } from "@/contexts/app-context";
@@ -41,6 +41,17 @@ export default function DashboardLayout({
                     title="Configurar WhatsApp Business"
                   >
                     <MessageCircle className="h-5 w-5" />
+                  </Button>
+                </Link>
+                {/* WhatsApp Tools Icon */}
+                <Link href="/whatsapp-tools">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10"
+                    title="Ferramentas WhatsApp"
+                  >
+                    <MessageSquare className="h-5 w-5" />
                   </Button>
                 </Link>
               </div>
