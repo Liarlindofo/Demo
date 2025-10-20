@@ -128,3 +128,4 @@ DATABASE_URL=postgresql://username:password@host:port/database
 4. Os emails chegarão perfeitamente!
 
 
+

@@ -112,3 +112,4 @@ NEXT_PUBLIC_APP_URL=https://projetodrin.vercel.app
 **Sistema 100% funcional!** 🚀
 
 
+

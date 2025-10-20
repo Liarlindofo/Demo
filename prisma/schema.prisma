@@ -70,3 +70,5 @@ model TopProduct {
 
   @@map("top_products")
 }
+
+// prisma/schema.prisma

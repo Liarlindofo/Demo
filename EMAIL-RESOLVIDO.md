@@ -121,3 +121,4 @@ RESEND_API_KEY=re_sua_chave_aqui
 - **Resultado:** Sempre funciona, com ou sem email configurado
 
 
+
