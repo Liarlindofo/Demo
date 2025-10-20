@@ -126,3 +126,5 @@ DATABASE_URL=postgresql://username:password@host:port/database
 2. Faça deploy das alterações
 3. Teste o sistema
 4. Os emails chegarão perfeitamente!
+
+

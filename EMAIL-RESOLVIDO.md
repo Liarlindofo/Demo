@@ -119,3 +119,5 @@ RESEND_API_KEY=re_sua_chave_aqui
 - **Email:** DrinAdmin2157
 - **Senha:** 21571985
 - **Resultado:** Sempre funciona, com ou sem email configurado
+
+

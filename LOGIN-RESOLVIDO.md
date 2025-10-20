@@ -110,3 +110,5 @@ NEXT_PUBLIC_APP_URL=https://projetodrin.vercel.app
 4. Nunca mais ver "Usuário não encontrado"
 
 **Sistema 100% funcional!** 🚀
+
+
