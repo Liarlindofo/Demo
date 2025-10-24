@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent } from "@/components/ui/card";
+// import { Card, CardContent } from "@/components/ui/card";
 import { Camera, Save, X } from "lucide-react";
 import { useApp } from "@/contexts/app-context";
 
@@ -32,7 +32,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       addToast("Perfil atualizado com sucesso!", "success");
       onClose();
-    } catch (error) {
+    } catch {
       addToast("Erro ao atualizar perfil", "error");
     } finally {
       setIsLoading(false);

@@ -1,11 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { MeshGradient, DotOrbit } from "@paper-design/shaders-react"
+import { MeshGradient } from "@paper-design/shaders-react"
 
 export function MinimalistBackground() {
-  const [intensity, setIntensity] = useState(0.3)
-  const [speed, setSpeed] = useState(0.5)
+  const [speed] = useState(0.5)
 
   return (
     <div className="w-full h-full absolute inset-0">

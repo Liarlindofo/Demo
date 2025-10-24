@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Settings, User, Moon, Sun, LogOut } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { Logo } from "@/components/logo";
 import { AppProvider, useApp } from "@/contexts/app-context";
 import { ToastManager } from "@/components/notification-toast";
@@ -49,9 +50,11 @@ function DemoPageContent() {
               className="p-2 hover:bg-[#374151] rounded-lg transition-colors"
               title="Configurar WhatsApp para relatórios"
             >
-              <img 
+              <Image 
                 src="/whatsapp-logo.svg" 
                 alt="WhatsApp" 
+                width={24}
+                height={24}
                 className="w-6 h-6"
               />
             </button>

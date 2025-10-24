@@ -22,12 +22,13 @@ import {
 } from "lucide-react";
 import { AppProvider, useApp } from "@/contexts/app-context";
 import { ToastManager } from "@/components/notification-toast";
+import Image from "next/image";
 
 function WhatsAppConfigContent() {
   const { addToast, toasts, removeToast } = useApp();
   const [isConnected, setIsConnected] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
-  const [connectionStep, setConnectionStep] = useState<'scan' | 'connected' | 'config'>('scan');
+  const [, setConnectionStep] = useState<'scan' | 'connected' | 'config'>('scan');
   
   // Form states
   const [messageTemplate, setMessageTemplate] = useState(`📊 *Relatório Diário*
@@ -90,7 +91,7 @@ function WhatsAppConfigContent() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
-            <img src="/whatsapp-logo.svg" alt="WhatsApp" className="w-8 h-8" />
+            <Image src="/whatsapp-logo.svg" alt="WhatsApp" width={32} height={32} className="w-8 h-8" />
             <h1 className="text-3xl font-bold">Configuração do WhatsApp</h1>
           </div>
           <p className="text-gray-400">
@@ -161,9 +162,11 @@ function WhatsAppConfigContent() {
                     {qrCode ? (
                       <div className="space-y-4">
                         <div className="flex justify-center">
-                          <img 
+                          <Image 
                             src={qrCode} 
                             alt="QR Code" 
+                            width={200}
+                            height={200}
                             className="border-2 border-white rounded-lg p-4 bg-white"
                           />
                         </div>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNotification } from "@/components/ui/notification";
-import { ArrowLeft, Mail, RefreshCw, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Mail, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 
 export default function DebugOTPPage() {

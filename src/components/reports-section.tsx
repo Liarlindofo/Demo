@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -25,7 +25,7 @@ export function ReportsSection() {
   const { selectedStore, selectedPeriod, setSelectedPeriod, selectedDate, setSelectedDate, addToast } = useApp();
   const [salesData, setSalesData] = useState<SaiposSalesData[]>([]);
   const [dailyData, setDailyData] = useState<SaiposSalesData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
 
   const handlePeriodChange = (period: string) => {
     setSelectedPeriod(period);
@@ -41,7 +41,7 @@ export function ReportsSection() {
   };
 
   // Função para carregar dados da API da Saipos
-  const loadSalesData = async () => {
+  const loadSalesData = useCallback(async () => {
     setIsLoading(true);
     try {
       const endDate = new Date();
@@ -84,7 +84,7 @@ export function ReportsSection() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedPeriod, addToast]);
 
   // Função para carregar dados diários
   const loadDailyData = async (date: Date) => {
@@ -112,7 +112,7 @@ export function ReportsSection() {
   // Carregar dados quando o componente montar ou o período mudar
   useEffect(() => {
     loadSalesData();
-  }, [selectedPeriod]);
+  }, [selectedPeriod, loadSalesData]);
 
   // Carregar dados diários quando uma data for selecionada
   useEffect(() => {
@@ -287,7 +287,7 @@ export function ReportsSection() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dailyData ? dailyData.topProducts.map((product, index) => ({
+              <BarChart data={dailyData ? dailyData.topProducts.map((product) => ({
                 hora: product.name.substring(0, 8) + "...",
                 pedidos: product.quantity
               })) : dailyOrdersData}>

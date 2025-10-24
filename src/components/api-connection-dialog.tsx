@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle, Plus, Menu, MessageSquare } from "lucide-react";
+import Image from "next/image";
 
 interface API {
   id: string;
@@ -73,7 +74,7 @@ export function APIConnectionDialog() {
   const [newAPIName, setNewAPIName] = useState("");
   const [newAPIDescription, setNewAPIDescription] = useState("");
 
-  const handleConnect = async (api: API) => {
+  const handleConnect = async () => {
     setIsConnecting(true);
     // Simular conexão
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -99,7 +100,7 @@ export function APIConnectionDialog() {
     }
   };
 
-  const allAPIs = [...availableAPIs, ...customAPIs];
+  // const allAPIs = [...availableAPIs, ...customAPIs];
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -131,7 +132,7 @@ export function APIConnectionDialog() {
           {/* WhatsApp Section */}
           <div>
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <img src="/whatsapp-logo.svg" alt="WhatsApp" className="w-5 h-5" />
+              <Image src="/whatsapp-logo.svg" alt="WhatsApp" width={20} height={20} className="w-5 h-5" />
               WhatsApp Business
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 lg:gap-4">
@@ -392,7 +393,7 @@ export function APIConnectionDialog() {
                 
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Button
-                    onClick={() => handleConnect(selectedAPI)}
+                    onClick={() => handleConnect()}
                     disabled={!apiKey || isConnecting}
                     className="bg-[#001F05] hover:bg-[#001F05]/80 text-white flex-1 sm:flex-none"
                   >
