@@ -16,6 +16,13 @@ interface Toast {
   type: "success" | "error" | "info";
 }
 
+interface API {
+  id: string;
+  name: string;
+  status: "connected" | "disconnected" | "error";
+  type: "saipos" | "custom" | "whatsapp";
+}
+
 interface AppContextType {
   selectedStore: Store | null;
   setSelectedStore: (store: Store | null) => void;
@@ -28,6 +35,8 @@ interface AppContextType {
   toasts: Toast[];
   addToast: (message: string, type: "success" | "error" | "info") => void;
   removeToast: (id: string) => void;
+  connectedAPIs: API[];
+  setConnectedAPIs: (apis: API[]) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -38,6 +47,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [connectedAPIs, setConnectedAPIs] = useState<API[]>([
+    {
+      id: "saipos-1",
+      name: "PDV Principal",
+      status: "connected",
+      type: "saipos"
+    }
+  ]);
 
   // Aplicar tema ao documento
   useEffect(() => {
@@ -72,7 +89,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setIsDarkMode,
       toasts,
       addToast,
-      removeToast
+      removeToast,
+      connectedAPIs,
+      setConnectedAPIs
     }}>
       {children}
     </AppContext.Provider>

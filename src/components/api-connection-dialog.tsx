@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle, Plus, Menu, MessageSquare } from "lucide-react";
 import Image from "next/image";
+import { useApp } from "@/contexts/app-context";
 
 interface API {
   id: string;
@@ -65,6 +66,7 @@ const availableAPIs: API[] = [
 ];
 
 export function APIConnectionDialog() {
+  const { connectedAPIs, setConnectedAPIs, addToast } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedAPI, setSelectedAPI] = useState<API | null>(null);
   const [apiKey, setApiKey] = useState("");
@@ -75,12 +77,27 @@ export function APIConnectionDialog() {
   const [newAPIDescription, setNewAPIDescription] = useState("");
 
   const handleConnect = async () => {
+    if (!selectedAPI) return;
+    
     setIsConnecting(true);
     // Simular conexão
     await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Atualizar o contexto com a nova API conectada
+    const newConnectedAPI = {
+      id: selectedAPI.id,
+      name: selectedAPI.name,
+      status: "connected" as const,
+      type: selectedAPI.type
+    };
+    
+    setConnectedAPIs([...connectedAPIs, newConnectedAPI]);
+    addToast(`${selectedAPI.name} conectada com sucesso!`, "success");
+    
     setIsConnecting(false);
     setIsOpen(false);
-    // Aqui você implementaria a lógica real de conexão
+    setSelectedAPI(null);
+    setApiKey("");
   };
 
   const handleAddCustomAPI = () => {
@@ -100,7 +117,11 @@ export function APIConnectionDialog() {
     }
   };
 
-  // const allAPIs = [...availableAPIs, ...customAPIs];
+  // Atualizar status das APIs baseado no contexto
+  const allAPIs = [...availableAPIs, ...customAPIs].map(api => ({
+    ...api,
+    status: connectedAPIs.some(connected => connected.id === api.id) ? "connected" : api.status
+  }));
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -120,67 +141,66 @@ export function APIConnectionDialog() {
           <Menu className="h-5 w-5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-[#141415] border-[#374151] text-white max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-white">Conectar APIs</DialogTitle>
-          <DialogDescription className="text-gray-400">
+      <DialogContent className="bg-[#141415] border-[#374151] text-white max-w-7xl w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0 pb-4">
+          <DialogTitle className="text-white text-2xl font-bold">Conectar APIs</DialogTitle>
+          <DialogDescription className="text-gray-400 text-base">
             Conecte suas APIs para sincronizar dados e gerar relatórios automáticos
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-6">
+        <div className="flex-1 overflow-y-auto space-y-8 pr-2">
           {/* WhatsApp Section */}
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <Image src="/whatsapp-logo.svg" alt="WhatsApp" width={20} height={20} className="w-5 h-5" />
+          <div className="bg-[#141415] rounded-xl p-6 border border-[#374151]">
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+              <Image src="/whatsapp-logo.svg" alt="WhatsApp" width={24} height={24} className="w-6 h-6" />
               WhatsApp Business
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 lg:gap-4">
-              {availableAPIs.filter(api => api.type === "whatsapp").map((api) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {allAPIs.filter(api => api.type === "whatsapp").map((api) => (
                 <Card 
                   key={api.id} 
-                  className={`cursor-pointer transition-all duration-200 hover:scale-105 min-h-[120px] ${
+                  className={`cursor-pointer transition-all duration-200 hover:scale-105 h-[140px] ${
                     api.status === "connected" 
-                      ? "bg-[#001F05]/20 border-[#001F05]" 
-                      : "bg-[#141415] border-[#374151]"
+                      ? "bg-[#001F05]/20 border-[#001F05] shadow-lg shadow-[#001F05]/10" 
+                      : "bg-[#1a1a1a] border-[#374151] hover:border-[#001F05]/50"
                   }`}
                   onClick={() => setSelectedAPI(api)}
                 >
-                  <CardHeader className="pb-3 p-4">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <span className="text-2xl flex-shrink-0">{api.icon}</span>
-                        <div className="min-w-0 flex-1">
-                          <CardTitle className="text-white text-sm sm:text-base truncate">{api.name}</CardTitle>
-                          <CardDescription className="text-gray-400 text-xs sm:text-sm line-clamp-2">
+                  <CardContent className="p-4 h-full flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">{api.icon}</span>
+                        <div>
+                          <CardTitle className="text-white text-sm font-semibold">{api.name}</CardTitle>
+                          <CardDescription className="text-gray-400 text-xs mt-1">
                             {api.description}
                           </CardDescription>
                         </div>
                       </div>
-                      <div className="flex-shrink-0">
-                        {getStatusBadge(api.status)}
-                      </div>
+                      {getStatusBadge(api.status)}
                     </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    {api.status === "connected" && api.lastSync && (
-                      <p className="text-xs text-green-400">
-                        Última sincronização: {api.lastSync}
-                      </p>
-                    )}
-                    {api.status === "disconnected" && (
-                      <Button 
-                        size="sm" 
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open('/whatsapp-config', '_blank');
-                        }}
-                      >
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        Configurar
-                      </Button>
-                    )}
+                    
+                    <div className="mt-auto">
+                      {api.status === "connected" && api.lastSync && (
+                        <p className="text-xs text-green-400 mb-2">
+                          Última sincronização: {api.lastSync}
+                        </p>
+                      )}
+                      {api.status === "disconnected" && (
+                        <Button 
+                          size="sm" 
+                          className="w-full bg-green-600 hover:bg-green-700 text-white text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open('/whatsapp-config', '_blank');
+                          }}
+                        >
+                          <MessageSquare className="w-3 h-3 mr-2" />
+                          Configurar
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -188,53 +208,55 @@ export function APIConnectionDialog() {
           </div>
 
           {/* APIs Saipos */}
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-4">PDVs Saipos</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 lg:gap-4">
-              {availableAPIs.filter(api => api.type === "saipos").map((api) => (
+          <div className="bg-[#141415] rounded-xl p-6 border border-[#374151]">
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+              <span className="text-2xl">🍕</span>
+              PDVs Saipos
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {allAPIs.filter(api => api.type === "saipos").map((api) => (
                 <Card 
                   key={api.id} 
-                  className={`cursor-pointer transition-all duration-200 hover:scale-105 min-h-[120px] ${
+                  className={`cursor-pointer transition-all duration-200 hover:scale-105 h-[140px] ${
                     api.status === "connected" 
-                      ? "bg-[#001F05]/20 border-[#001F05]" 
-                      : "bg-[#141415] border-[#374151]"
+                      ? "bg-[#001F05]/20 border-[#001F05] shadow-lg shadow-[#001F05]/10" 
+                      : "bg-[#1a1a1a] border-[#374151] hover:border-[#001F05]/50"
                   }`}
                   onClick={() => setSelectedAPI(api)}
                 >
-                  <CardHeader className="pb-3 p-4">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <span className="text-2xl flex-shrink-0">{api.icon}</span>
-                        <div className="min-w-0 flex-1">
-                          <CardTitle className="text-white text-sm sm:text-base truncate">{api.name}</CardTitle>
-                          <CardDescription className="text-gray-400 text-xs sm:text-sm line-clamp-2">
+                  <CardContent className="p-4 h-full flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">{api.icon}</span>
+                        <div>
+                          <CardTitle className="text-white text-sm font-semibold">{api.name}</CardTitle>
+                          <CardDescription className="text-gray-400 text-xs mt-1">
                             {api.description}
                           </CardDescription>
                         </div>
                       </div>
-                      <div className="flex-shrink-0">
-                        {getStatusBadge(api.status)}
-                      </div>
+                      {getStatusBadge(api.status)}
                     </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    {api.status === "connected" && api.lastSync && (
-                      <p className="text-xs text-green-400">
-                        Última sincronização: {api.lastSync}
-                      </p>
-                    )}
-                    {api.status === "disconnected" && (
-                      <Button 
-                        size="sm" 
-                        className="w-full bg-[#001F05] hover:bg-[#001F05]/80 text-white"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedAPI(api);
-                        }}
-                      >
-                        Conectar
-                      </Button>
-                    )}
+                    
+                    <div className="mt-auto">
+                      {api.status === "connected" && api.lastSync && (
+                        <p className="text-xs text-green-400 mb-2">
+                          Última sincronização: {api.lastSync}
+                        </p>
+                      )}
+                      {api.status === "disconnected" && (
+                        <Button 
+                          size="sm" 
+                          className="w-full bg-[#001F05] hover:bg-[#001F05]/80 text-white text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedAPI(api);
+                          }}
+                        >
+                          Conectar
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
