@@ -18,8 +18,8 @@ class RealtimeService {
   private config: RealtimeConfig;
   private eventSource: EventSource | null = null;
   private retryCount = 0;
-  private retryTimeout: NodeJS.Timeout | null = null;
-  private mockInterval: NodeJS.Timeout | null = null;
+  private retryTimeout: number | null = null;
+  private mockInterval: number | null = null;
   private listeners: Map<string, (data: RealtimeUpdate) => void> = new Map();
 
   constructor(config: RealtimeConfig) {
@@ -32,6 +32,12 @@ class RealtimeService {
 
   // Conectar ao stream de dados em tempo real
   connect(storeId: string): void {
+    // Verificar se estamos no lado do cliente
+    if (typeof window === 'undefined') {
+      console.log('⚠️ connect chamado no servidor, ignorando...');
+      return;
+    }
+
     if (this.eventSource) {
       this.disconnect();
     }
@@ -62,6 +68,11 @@ class RealtimeService {
 
   // Desconectar do stream
   disconnect(): void {
+    // Verificar se estamos no lado do cliente
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
@@ -80,11 +91,16 @@ class RealtimeService {
 
   // Gerenciar reconexão automática
   private handleReconnection(): void {
+    // Verificar se estamos no lado do cliente
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     if (this.retryCount < this.config.maxRetries!) {
       this.retryCount++;
       console.log(`🔄 Tentativa de reconexão ${this.retryCount}/${this.config.maxRetries}`);
       
-      this.retryTimeout = setTimeout(() => {
+      this.retryTimeout = window.setTimeout(() => {
         this.connect(this.getCurrentStoreId());
       }, this.config.retryInterval);
     } else {
@@ -121,6 +137,12 @@ class RealtimeService {
 
   // Simular dados em tempo real para desenvolvimento
   startMockUpdates(storeId: string): void {
+    // Verificar se estamos no lado do cliente
+    if (typeof window === 'undefined') {
+      console.log('⚠️ startMockUpdates chamado no servidor, ignorando...');
+      return;
+    }
+
     console.log(`🚀 Iniciando mock de atualizações em tempo real para a loja: ${storeId}`);
     
     // Limpar interval anterior se existir
@@ -129,7 +151,7 @@ class RealtimeService {
     }
 
     // Simular atualizações a cada 5 segundos
-    this.mockInterval = setInterval(() => {
+    this.mockInterval = window.setInterval(() => {
       const updateType = ['sales', 'orders', 'customers'][Math.floor(Math.random() * 3)];
       let updateData: Record<string, unknown> = {};
 

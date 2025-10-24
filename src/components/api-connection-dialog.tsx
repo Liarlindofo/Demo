@@ -116,7 +116,7 @@ export function APIConnectionDialog() {
       setIsOpen(false);
       setSelectedAPI(null);
       setApiKey("");
-    } catch (error) {
+    } catch {
       addToast("Erro ao conectar API", "error");
       setIsConnecting(false);
     }
@@ -132,7 +132,7 @@ export function APIConnectionDialog() {
         console.log('❌ API desconectada:', apiToDisconnect);
         console.log('📋 Lista atualizada de APIs:', updatedAPIs);
       }
-    } catch (error) {
+    } catch {
       addToast("Erro ao desconectar API", "error");
     }
   };
