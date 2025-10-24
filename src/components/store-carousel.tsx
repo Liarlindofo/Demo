@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -63,6 +64,14 @@ export function StoreCarousel() {
   console.log('🔍 APIs conectadas:', connectedAPIs);
   console.log('🏪 Lojas filtradas:', connectedStores);
   console.log('🎠 Deve mostrar carrossel:', shouldShowCarousel);
+
+  // Selecionar automaticamente a primeira loja se nenhuma estiver selecionada
+  useEffect(() => {
+    if (connectedStores.length > 0 && !selectedStore) {
+      setSelectedStore(connectedStores[0]);
+      addToast(`Loja ${connectedStores[0].name} selecionada automaticamente!`, "info");
+    }
+  }, [connectedStores, selectedStore, setSelectedStore, addToast]);
 
   const handleStoreSelect = (store: Store) => {
     if (store.status === "connected") {

@@ -74,10 +74,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   ]);
   const [dashboardData, setDashboardData] = useState<DashboardData>({
-    totalSales: 2450,
-    totalOrders: 47,
-    averageTicket: 52.13,
-    uniqueCustomers: 23,
+    totalSales: 0,
+    totalOrders: 0,
+    averageTicket: 0,
+    uniqueCustomers: 0,
     lastUpdate: new Date().toISOString(),
     isSyncing: false
   });
