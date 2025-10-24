@@ -133,8 +133,12 @@ export function ReportsSection() {
 
   // Configurar sincronização em tempo real
   useEffect(() => {
-    if (!selectedStore) return;
+    if (!selectedStore) {
+      console.log('⚠️ Nenhuma loja selecionada, não iniciando tempo real');
+      return;
+    }
 
+    console.log(`🚀 Configurando tempo real para loja: ${selectedStore.name} (ID: ${selectedStore.id})`);
     const listenerId = `realtime-${selectedStore.id}`;
     
     // Configurar listener para atualizações em tempo real
@@ -174,6 +178,7 @@ export function ReportsSection() {
 
     // Cleanup
     return () => {
+      console.log(`🧹 Limpando listener ${listenerId}`);
       realtimeService.unsubscribe(listenerId);
       realtimeService.disconnect();
     };

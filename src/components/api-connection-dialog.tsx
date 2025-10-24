@@ -80,24 +80,41 @@ export function APIConnectionDialog() {
     if (!selectedAPI) return;
     
     setIsConnecting(true);
-    // Simular conexão
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Atualizar o contexto com a nova API conectada
-    const newConnectedAPI = {
-      id: selectedAPI.id,
-      name: selectedAPI.name,
-      status: "connected" as const,
-      type: selectedAPI.type
-    };
-    
-    setConnectedAPIs([...connectedAPIs, newConnectedAPI]);
-    addToast(`${selectedAPI.name} conectada com sucesso!`, "success");
-    
-    setIsConnecting(false);
-    setIsOpen(false);
-    setSelectedAPI(null);
-    setApiKey("");
+    try {
+      // Simular conexão com validação da API key
+      if (!apiKey.trim()) {
+        addToast("Por favor, insira uma chave de API válida", "error");
+        return;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Verificar se a API já está conectada
+      const isAlreadyConnected = connectedAPIs.some(api => api.id === selectedAPI.id);
+      
+      if (!isAlreadyConnected) {
+        // Atualizar o contexto com a nova API conectada
+        const newConnectedAPI = {
+          id: selectedAPI.id,
+          name: selectedAPI.name,
+          status: "connected" as const,
+          type: selectedAPI.type
+        };
+        
+        setConnectedAPIs([...connectedAPIs, newConnectedAPI]);
+        addToast(`${selectedAPI.name} conectada com sucesso!`, "success");
+      } else {
+        addToast(`${selectedAPI.name} já está conectada`, "info");
+      }
+      
+      setIsConnecting(false);
+      setIsOpen(false);
+      setSelectedAPI(null);
+      setApiKey("");
+    } catch (error) {
+      addToast("Erro ao conectar API", "error");
+      setIsConnecting(false);
+    }
   };
 
   const handleAddCustomAPI = () => {

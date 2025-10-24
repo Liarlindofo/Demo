@@ -65,6 +65,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       name: "PDV Principal",
       status: "connected",
       type: "saipos"
+    },
+    {
+      id: "saipos-2",
+      name: "PDV Secundário",
+      status: "connected",
+      type: "saipos"
     }
   ]);
   const [dashboardData, setDashboardData] = useState<DashboardData>({

@@ -52,7 +52,6 @@ export function StoreCarousel() {
 
   // Filtrar lojas conectadas baseado nas APIs conectadas
   const connectedStores = mockStores.filter(store => 
-    store.status === "connected" && 
     store.apiId && 
     connectedAPIs.some(api => api.id === store.apiId && api.status === "connected")
   );
@@ -60,6 +59,10 @@ export function StoreCarousel() {
   // Lógica de exibição baseada no número de lojas conectadas
   const shouldShowCarousel = connectedStores.length > 1;
   const storesToShow = connectedStores;
+  
+  console.log('🔍 APIs conectadas:', connectedAPIs);
+  console.log('🏪 Lojas filtradas:', connectedStores);
+  console.log('🎠 Deve mostrar carrossel:', shouldShowCarousel);
 
   const handleStoreSelect = (store: Store) => {
     if (store.status === "connected") {

@@ -19,6 +19,7 @@ class RealtimeService {
   private eventSource: EventSource | null = null;
   private retryCount = 0;
   private retryTimeout: NodeJS.Timeout | null = null;
+  private mockInterval: NodeJS.Timeout | null = null;
   private listeners: Map<string, (data: RealtimeUpdate) => void> = new Map();
 
   constructor(config: RealtimeConfig) {
@@ -70,6 +71,11 @@ class RealtimeService {
       clearTimeout(this.retryTimeout);
       this.retryTimeout = null;
     }
+    
+    if (this.mockInterval) {
+      clearInterval(this.mockInterval);
+      this.mockInterval = null;
+    }
   }
 
   // Gerenciar reconexão automática
@@ -115,40 +121,49 @@ class RealtimeService {
 
   // Simular dados em tempo real para desenvolvimento
   startMockUpdates(storeId: string): void {
-    const mockData: RealtimeUpdate[] = [
-      {
-        storeId,
-        type: 'sales',
-        data: { totalSales: 2500, timestamp: new Date().toISOString() },
-        timestamp: new Date().toISOString()
-      },
-      {
-        storeId,
-        type: 'orders',
-        data: { totalOrders: 48, timestamp: new Date().toISOString() },
-        timestamp: new Date().toISOString()
-      },
-      {
-        storeId,
-        type: 'customers',
-        data: { uniqueCustomers: 24, timestamp: new Date().toISOString() },
-        timestamp: new Date().toISOString()
+    console.log(`🚀 Iniciando mock de atualizações em tempo real para a loja: ${storeId}`);
+    
+    // Limpar interval anterior se existir
+    if (this.mockInterval) {
+      clearInterval(this.mockInterval);
+    }
+
+    // Simular atualizações a cada 5 segundos
+    this.mockInterval = setInterval(() => {
+      const updateType = ['sales', 'orders', 'customers'][Math.floor(Math.random() * 3)];
+      let updateData: Record<string, unknown> = {};
+
+      switch (updateType) {
+        case 'sales':
+          updateData = { 
+            totalSales: Math.floor(Math.random() * 1000) + 2000,
+            timestamp: new Date().toISOString()
+          };
+          break;
+        case 'orders':
+          updateData = { 
+            totalOrders: Math.floor(Math.random() * 50) + 30,
+            timestamp: new Date().toISOString()
+          };
+          break;
+        case 'customers':
+          updateData = { 
+            uniqueCustomers: Math.floor(Math.random() * 20) + 10,
+            timestamp: new Date().toISOString()
+          };
+          break;
       }
-    ];
 
-    // Simular atualizações a cada 10 segundos
-    const interval = setInterval(() => {
-      const randomUpdate = mockData[Math.floor(Math.random() * mockData.length)];
-      randomUpdate.timestamp = new Date().toISOString();
-      this.notifyListeners(randomUpdate);
-    }, 10000);
+      const update: RealtimeUpdate = {
+        storeId,
+        type: updateType as 'sales' | 'orders' | 'customers',
+        data: updateData,
+        timestamp: new Date().toISOString(),
+      };
 
-    // Limpar interval quando desconectar
-    const originalDisconnect = this.disconnect.bind(this);
-    this.disconnect = () => {
-      clearInterval(interval);
-      originalDisconnect();
-    };
+      console.log(`📊 Enviando atualização ${updateType}:`, update);
+      this.notifyListeners(update);
+    }, 5000); // Envia uma atualização a cada 5 segundos
   }
 }
 
