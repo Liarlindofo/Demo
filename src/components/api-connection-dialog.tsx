@@ -101,8 +101,13 @@ export function APIConnectionDialog() {
           type: selectedAPI.type
         };
         
-        setConnectedAPIs([...connectedAPIs, newConnectedAPI]);
+        const updatedAPIs = [...connectedAPIs, newConnectedAPI];
+        setConnectedAPIs(updatedAPIs);
         addToast(`${selectedAPI.name} conectada com sucesso!`, "success");
+        
+        // Log para debug
+        console.log('✅ API conectada:', newConnectedAPI);
+        console.log('📋 Lista atualizada de APIs:', updatedAPIs);
       } else {
         addToast(`${selectedAPI.name} já está conectada`, "info");
       }
@@ -114,6 +119,21 @@ export function APIConnectionDialog() {
     } catch (error) {
       addToast("Erro ao conectar API", "error");
       setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async (apiId: string) => {
+    try {
+      const apiToDisconnect = connectedAPIs.find(api => api.id === apiId);
+      if (apiToDisconnect) {
+        const updatedAPIs = connectedAPIs.filter(api => api.id !== apiId);
+        setConnectedAPIs(updatedAPIs);
+        addToast(`${apiToDisconnect.name} desconectada!`, "info");
+        console.log('❌ API desconectada:', apiToDisconnect);
+        console.log('📋 Lista atualizada de APIs:', updatedAPIs);
+      }
+    } catch (error) {
+      addToast("Erro ao desconectar API", "error");
     }
   };
 
@@ -200,9 +220,22 @@ export function APIConnectionDialog() {
                     
                     <div className="mt-auto">
                       {api.status === "connected" && api.lastSync && (
-                        <p className="text-xs text-green-400 mb-2">
-                          Última sincronização: {api.lastSync}
-                        </p>
+                        <div className="space-y-2">
+                          <p className="text-xs text-green-400 mb-2">
+                            Última sincronização: {api.lastSync}
+                          </p>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="w-full bg-red-600/20 border-red-600 text-red-400 hover:bg-red-600/30 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDisconnect(api.id);
+                            }}
+                          >
+                            Desconectar
+                          </Button>
+                        </div>
                       )}
                       {api.status === "disconnected" && (
                         <Button 
@@ -257,9 +290,22 @@ export function APIConnectionDialog() {
                     
                     <div className="mt-auto">
                       {api.status === "connected" && api.lastSync && (
-                        <p className="text-xs text-green-400 mb-2">
-                          Última sincronização: {api.lastSync}
-                        </p>
+                        <div className="space-y-2">
+                          <p className="text-xs text-green-400 mb-2">
+                            Última sincronização: {api.lastSync}
+                          </p>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="w-full bg-red-600/20 border-red-600 text-red-400 hover:bg-red-600/30 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDisconnect(api.id);
+                            }}
+                          >
+                            Desconectar
+                          </Button>
+                        </div>
                       )}
                       {api.status === "disconnected" && (
                         <Button 
