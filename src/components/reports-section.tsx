@@ -5,12 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, TrendingUp, ShoppingCart, DollarSign, Users } from "lucide-react";
+import { CalendarIcon, TrendingUp, ShoppingCart, DollarSign, Users, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { useApp } from "@/contexts/app-context";
 import { saiposAPI, SaiposSalesData } from "@/lib/saipos-api";
+import { realtimeService, RealtimeUpdate } from "@/lib/realtime-service";
 
 // Dados mockados para fallback
 const dailyOrdersData = [
@@ -22,7 +23,16 @@ const dailyOrdersData = [
 ];
 
 export function ReportsSection() {
-  const { selectedStore, selectedPeriod, setSelectedPeriod, selectedDate, setSelectedDate, addToast } = useApp();
+  const { 
+    selectedStore, 
+    selectedPeriod, 
+    setSelectedPeriod, 
+    selectedDate, 
+    setSelectedDate, 
+    addToast,
+    dashboardData,
+    updateDashboardData
+  } = useApp();
   const [salesData, setSalesData] = useState<SaiposSalesData[]>([]);
   const [dailyData, setDailyData] = useState<SaiposSalesData | null>(null);
   const [, setIsLoading] = useState(false);
@@ -121,35 +131,87 @@ export function ReportsSection() {
     }
   }, [selectedDate]);
 
-  // Estatísticas dinâmicas baseadas nos dados da API
+  // Configurar sincronização em tempo real
+  useEffect(() => {
+    if (!selectedStore) return;
+
+    const listenerId = `realtime-${selectedStore.id}`;
+    
+    // Configurar listener para atualizações em tempo real
+    realtimeService.subscribe(listenerId, (update: RealtimeUpdate) => {
+      console.log('📊 Atualização em tempo real recebida:', update);
+      
+      // Atualizar dados do dashboard baseado no tipo de atualização
+      switch (update.type) {
+        case 'sales':
+          updateDashboardData({ 
+            totalSales: update.data.totalSales as number,
+            isSyncing: true 
+          });
+          break;
+        case 'orders':
+          updateDashboardData({ 
+            totalOrders: update.data.totalOrders as number,
+            isSyncing: true 
+          });
+          break;
+        case 'customers':
+          updateDashboardData({ 
+            uniqueCustomers: update.data.uniqueCustomers as number,
+            isSyncing: true 
+          });
+          break;
+      }
+      
+      // Remover estado de sincronização após 2 segundos
+      setTimeout(() => {
+        updateDashboardData({ isSyncing: false });
+      }, 2000);
+    });
+
+    // Iniciar conexão em tempo real (usando mock para desenvolvimento)
+    realtimeService.startMockUpdates(selectedStore.id);
+
+    // Cleanup
+    return () => {
+      realtimeService.unsubscribe(listenerId);
+      realtimeService.disconnect();
+    };
+  }, [selectedStore, updateDashboardData]);
+
+  // Estatísticas dinâmicas baseadas nos dados em tempo real
   const stats = [
     {
       title: "Vendas Hoje",
-      value: dailyData ? `R$ ${dailyData.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "R$ 0,00",
+      value: `R$ ${dashboardData.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       change: "+12.5%",
       changeType: "positive" as const,
       icon: DollarSign,
+      isSyncing: dashboardData.isSyncing
     },
     {
       title: "Pedidos Hoje",
-      value: dailyData ? dailyData.totalOrders.toString() : "0",
+      value: dashboardData.totalOrders.toString(),
       change: "+8.2%",
       changeType: "positive" as const,
       icon: ShoppingCart,
+      isSyncing: dashboardData.isSyncing
     },
     {
       title: "Ticket Médio",
-      value: dailyData ? `R$ ${dailyData.averageTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "R$ 0,00",
+      value: `R$ ${dashboardData.averageTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       change: "-2.1%",
       changeType: "negative" as const,
       icon: TrendingUp,
+      isSyncing: dashboardData.isSyncing
     },
     {
       title: "Clientes Únicos",
-      value: dailyData ? dailyData.uniqueCustomers.toString() : "0",
+      value: dashboardData.uniqueCustomers.toString(),
       change: "+15.3%",
       changeType: "positive" as const,
       icon: Users,
+      isSyncing: dashboardData.isSyncing
     },
   ];
 
@@ -214,7 +276,9 @@ export function ReportsSection() {
       {/* Cards de estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat, index) => (
-          <Card key={index} className="bg-[#141415] border-[#374151]">
+          <Card key={index} className={`bg-[#141415] border-[#374151] transition-all duration-300 ${
+            stat.isSyncing ? 'ring-2 ring-[#001F05]/50 bg-[#001F05]/5' : ''
+          }`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -222,7 +286,14 @@ export function ReportsSection() {
                   <p className="text-2xl font-bold text-white">{stat.value}</p>
                 </div>
                 <div className="flex flex-col items-end">
-                  <stat.icon className="h-8 w-8 text-[#001F05] mb-2" />
+                  <div className="flex items-center gap-2">
+                    <stat.icon className={`h-8 w-8 text-[#001F05] mb-2 ${
+                      stat.isSyncing ? 'animate-pulse' : ''
+                    }`} />
+                    {stat.isSyncing && (
+                      <RefreshCw className="h-4 w-4 text-[#001F05] animate-spin" />
+                    )}
+                  </div>
                   <span
                     className={`text-sm font-medium ${
                       stat.changeType === "positive" ? "text-green-400" : "text-red-400"

@@ -23,6 +23,15 @@ interface API {
   type: "saipos" | "custom" | "whatsapp";
 }
 
+interface DashboardData {
+  totalSales: number;
+  totalOrders: number;
+  averageTicket: number;
+  uniqueCustomers: number;
+  lastUpdate: string;
+  isSyncing: boolean;
+}
+
 interface AppContextType {
   selectedStore: Store | null;
   setSelectedStore: (store: Store | null) => void;
@@ -37,6 +46,9 @@ interface AppContextType {
   removeToast: (id: string) => void;
   connectedAPIs: API[];
   setConnectedAPIs: (apis: API[]) => void;
+  dashboardData: DashboardData;
+  setDashboardData: (data: DashboardData) => void;
+  updateDashboardData: (updates: Partial<DashboardData>) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -55,6 +67,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       type: "saipos"
     }
   ]);
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    totalSales: 2450,
+    totalOrders: 47,
+    averageTicket: 52.13,
+    uniqueCustomers: 23,
+    lastUpdate: new Date().toISOString(),
+    isSyncing: false
+  });
 
   // Aplicar tema ao documento
   useEffect(() => {
@@ -77,6 +97,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setToasts(prev => prev.filter(toast => toast.id !== id));
   };
 
+  const updateDashboardData = (updates: Partial<DashboardData>) => {
+    setDashboardData(prev => ({
+      ...prev,
+      ...updates,
+      lastUpdate: new Date().toISOString()
+    }));
+  };
+
   return (
     <AppContext.Provider value={{
       selectedStore,
@@ -91,7 +119,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addToast,
       removeToast,
       connectedAPIs,
-      setConnectedAPIs
+      setConnectedAPIs,
+      dashboardData,
+      setDashboardData,
+      updateDashboardData
     }}>
       {children}
     </AppContext.Provider>

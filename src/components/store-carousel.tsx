@@ -11,6 +11,7 @@ interface Store {
   avatar: string;
   status: "connected" | "disconnected";
   lastSync?: string;
+  apiId?: string; // ID da API conectada
 }
 
 const mockStores: Store[] = [
@@ -19,14 +20,16 @@ const mockStores: Store[] = [
     name: "Restaurante Central",
     avatar: "/avatars/store-1.png",
     status: "connected",
-    lastSync: "2 min atrás"
+    lastSync: "2 min atrás",
+    apiId: "saipos-1"
   },
   {
     id: "2", 
     name: "Pizzaria do João",
     avatar: "/avatars/store-2.png",
     status: "connected",
-    lastSync: "5 min atrás"
+    lastSync: "5 min atrás",
+    apiId: "saipos-2"
   },
   {
     id: "3",
@@ -39,7 +42,8 @@ const mockStores: Store[] = [
     name: "Café & Cia",
     avatar: "/avatars/store-4.png",
     status: "connected",
-    lastSync: "1 min atrás"
+    lastSync: "1 min atrás",
+    apiId: "saipos-3"
   }
 ];
 
@@ -47,11 +51,15 @@ export function StoreCarousel() {
   const { selectedStore, setSelectedStore, addToast, connectedAPIs } = useApp();
 
   // Filtrar lojas conectadas baseado nas APIs conectadas
-  const connectedStores = mockStores.filter(store => store.status === "connected");
+  const connectedStores = mockStores.filter(store => 
+    store.status === "connected" && 
+    store.apiId && 
+    connectedAPIs.some(api => api.id === store.apiId && api.status === "connected")
+  );
   
-  // Se há apenas 1 API conectada, mostrar apenas 1 loja
+  // Lógica de exibição baseada no número de lojas conectadas
   const shouldShowCarousel = connectedStores.length > 1;
-  const storesToShow = connectedAPIs.length <= 1 ? connectedStores.slice(0, 1) : connectedStores;
+  const storesToShow = connectedStores;
 
   const handleStoreSelect = (store: Store) => {
     if (store.status === "connected") {
@@ -104,6 +112,12 @@ export function StoreCarousel() {
                       <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#141415] ${
                         store.status === "connected" ? "bg-green-500" : "bg-red-500"
                       }`} />
+                      {/* Indicador de API conectada */}
+                      {store.apiId && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#001F05] rounded-full border border-[#141415] flex items-center justify-center">
+                          <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                        </div>
+                      )}
                     </div>
                     
                     <div className="text-center">
@@ -156,6 +170,12 @@ export function StoreCarousel() {
                         <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-[#141415] ${
                           store.status === "connected" ? "bg-green-500" : "bg-red-500"
                         }`} />
+                        {/* Indicador de API conectada */}
+                        {store.apiId && (
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#001F05] rounded-full border border-[#141415] flex items-center justify-center">
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                          </div>
+                        )}
                       </div>
                       
                       <div className="text-center">
