@@ -67,6 +67,11 @@ export function StoreCarousel() {
 
   // Selecionar automaticamente a primeira loja se nenhuma estiver selecionada
   useEffect(() => {
+    // Verificar se estamos no lado do cliente
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     if (connectedStores.length > 0 && !selectedStore) {
       setSelectedStore(connectedStores[0]);
       addToast(`Loja ${connectedStores[0].name} selecionada automaticamente!`, "info");

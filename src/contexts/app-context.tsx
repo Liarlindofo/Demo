@@ -84,6 +84,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Aplicar tema ao documento
   useEffect(() => {
+    // Verificar se estamos no lado do cliente
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     const html = document.documentElement;
     if (isDarkMode) {
       html.classList.add('dark');

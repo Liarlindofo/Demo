@@ -121,6 +121,11 @@ export function ReportsSection() {
 
   // Carregar dados quando o componente montar, período mudar ou loja mudar
   useEffect(() => {
+    // Verificar se estamos no lado do cliente
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     if (selectedStore) {
       console.log(`📊 Carregando dados para loja: ${selectedStore.name}`);
       loadSalesData();
@@ -147,6 +152,11 @@ export function ReportsSection() {
 
   // Configurar sincronização em tempo real
   useEffect(() => {
+    // Verificar se estamos no lado do cliente
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     if (!selectedStore) {
       console.log('⚠️ Nenhuma loja selecionada, não iniciando tempo real');
       return;

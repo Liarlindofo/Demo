@@ -8,6 +8,11 @@ export function WhatsAppButton() {
   const [isOpen, setIsOpen] = useState(false);
 
   const handleWhatsAppClick = () => {
+    // Verificar se estamos no lado do cliente
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     // Número do WhatsApp (substitua pelo número real)
     const phoneNumber = "5511999999999";
     const message = "Olá! Preciso de ajuda com a plataforma Drin.";
