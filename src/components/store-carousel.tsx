@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,7 +49,12 @@ const mockStores: Store[] = [
 ];
 
 export function StoreCarousel() {
+  const [isClient, setIsClient] = useState(false);
   const { selectedStore, setSelectedStore, addToast, connectedAPIs } = useApp();
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Filtrar lojas conectadas baseado nas APIs conectadas
   const connectedStores = mockStores.filter(store => 
@@ -86,6 +91,22 @@ export function StoreCarousel() {
       addToast("Esta loja está desconectada", "error");
     }
   };
+
+  if (!isClient) {
+    return (
+      <div className="w-full max-w-4xl mx-auto p-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-white mb-2">Suas Lojas</h2>
+          <p className="text-gray-400 text-sm">Carregando...</p>
+        </div>
+        <div className="flex gap-4 animate-pulse">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="w-48 h-32 bg-[#141415] border border-[#374151] rounded-lg"></div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6">
