@@ -5,6 +5,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { useApp } from "@/contexts/app-context";
+import { SaiposAPIService, SaiposStore } from "@/lib/saipos-api";
 
 interface Store {
   id: string;
@@ -15,64 +16,96 @@ interface Store {
   apiId?: string; // ID da API conectada
 }
 
-const mockStores: Store[] = [
-  {
-    id: "1",
-    name: "Restaurante Central",
-    avatar: "/avatars/store-1.png",
-    status: "connected",
-    lastSync: "2 min atrás",
-    apiId: "saipos-1"
-  },
-  {
-    id: "2", 
-    name: "Pizzaria do João",
-    avatar: "/avatars/store-2.png",
-    status: "connected",
-    lastSync: "5 min atrás",
-    apiId: "saipos-2"
-  },
-  {
-    id: "3",
-    name: "Lanchonete Express",
-    avatar: "/avatars/store-3.png",
-    status: "disconnected"
-  },
-  {
-    id: "4",
-    name: "Café & Cia",
-    avatar: "/avatars/store-4.png",
-    status: "connected",
-    lastSync: "1 min atrás",
-    apiId: "saipos-3"
-  }
-];
+// Dados mockados removidos - apenas dados reais da API Saipos
 
 export function StoreCarousel() {
   const [isClient, setIsClient] = useState(false);
+  const [saiposStores, setSaiposStores] = useState<SaiposStore[]>([]);
+  const [isLoadingStores, setIsLoadingStores] = useState(true);
   const { selectedStore, setSelectedStore, addToast, connectedAPIs } = useApp();
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
+  // Carregar lojas da API Saipos
+  useEffect(() => {
+    const loadStores = async () => {
+      try {
+        setIsLoadingStores(true);
+        console.log('🏪 Carregando lojas da API Saipos...');
+        
+        // Verificar se há APIs conectadas
+        const connectedSaiposAPIs = connectedAPIs.filter(api => 
+          api.type === 'saipos' && api.status === 'connected' && api.apiKey
+        );
+        
+        if (connectedSaiposAPIs.length === 0) {
+          console.log('⚠️ Nenhuma API Saipos conectada');
+          setSaiposStores([]);
+          return;
+        }
+        
+        // Usar a primeira API conectada
+        const apiConfig = connectedSaiposAPIs[0];
+        console.log(`🔗 Usando API: ${apiConfig.name}`);
+        
+        // Criar instância da API com a configuração do usuário
+        const userSaiposAPI = new SaiposAPIService({
+          apiKey: apiConfig.apiKey!,
+          baseUrl: apiConfig.baseUrl || 'https://api.saipos.com'
+        });
+        
+        const stores = await userSaiposAPI.getStores();
+        setSaiposStores(stores);
+        
+        console.log(`✅ ${stores.length} lojas carregadas da Saipos`);
+        addToast(`${stores.length} lojas carregadas da Saipos!`, "success");
+      } catch (error) {
+        console.error('❌ Erro ao carregar lojas:', error);
+        addToast("Erro ao carregar lojas da Saipos", "error");
+        // Em caso de erro, manter array vazio
+        setSaiposStores([]);
+      } finally {
+        setIsLoadingStores(false);
+      }
+    };
+
+    if (isClient) {
+      loadStores();
+    }
+  }, [isClient, addToast, connectedAPIs]);
+
+  // Converter dados da Saipos para o formato do componente
+  const convertedStores: Store[] = saiposStores.map(saiposStore => ({
+    id: saiposStore.id,
+    name: saiposStore.name,
+    avatar: `/avatars/store-${saiposStore.id}.png`,
+    status: saiposStore.status === 'active' ? 'connected' : 'disconnected',
+    lastSync: saiposStore.lastSync ? 
+      `${Math.floor((Date.now() - new Date(saiposStore.lastSync).getTime()) / (1000 * 60))} min atrás` : 
+      undefined,
+    apiId: saiposStore.apiId
+  }));
+
   // Filtrar lojas conectadas baseado nas APIs conectadas
-  const connectedStores = mockStores.filter(store => 
-    store.apiId && 
+  const connectedStores = convertedStores.filter(store =>
+    store.apiId &&
     connectedAPIs.some(api => api.id === store.apiId && api.status === "connected")
   );
-  
+
   // Lógica de exibição baseada no número de lojas conectadas
   const shouldShowCarousel = connectedStores.length > 1;
   const storesToShow = connectedStores;
-  
+
   console.log('🔍 APIs conectadas:', connectedAPIs);
+  console.log('🏪 Lojas da Saipos:', saiposStores);
+  console.log('🏪 Lojas convertidas:', convertedStores);
   console.log('🏪 Lojas filtradas:', connectedStores);
   console.log('🎠 Deve mostrar carrossel:', shouldShowCarousel);
 
   // Selecionar automaticamente a primeira loja se nenhuma estiver selecionada
   useEffect(() => {
-    // Verificar se estamos no lado do cliente
     if (typeof window === 'undefined') {
       return;
     }
@@ -92,12 +125,14 @@ export function StoreCarousel() {
     }
   };
 
-  if (!isClient) {
+  if (!isClient || isLoadingStores) {
     return (
       <div className="w-full max-w-4xl mx-auto p-6">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-white mb-2">Suas Lojas</h2>
-          <p className="text-gray-400 text-sm">Carregando...</p>
+          <p className="text-gray-400 text-sm">
+            {isLoadingStores ? "Carregando lojas da Saipos..." : "Carregando..."}
+          </p>
         </div>
         <div className="flex gap-4 animate-pulse">
           {[1, 2, 3, 4].map((i) => (

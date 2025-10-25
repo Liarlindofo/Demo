@@ -25,6 +25,7 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   stores    Store[]
+  apis      UserAPI[]
 
   @@map("users")
 }
@@ -69,6 +70,22 @@ model TopProduct {
   revenue   Float
 
   @@map("top_products")
+}
+
+model UserAPI {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  type      String   // "saipos", "custom", "whatsapp"
+  apiKey    String
+  baseUrl   String?
+  status    String   @default("disconnected") // "connected", "disconnected", "error"
+  lastTest  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_apis")
 }
 
 // prisma/schema.prisma

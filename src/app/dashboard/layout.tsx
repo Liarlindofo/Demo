@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Settings, User, Moon, Sun, LogOut, MessageCircle, MessageSquare } from "lucide-react";
 import { APIConnectionDialog } from "@/components/api-connection-dialog";
+import { APIConfigDialog } from "@/components/api-config-dialog";
 import { Logo } from "@/components/logo";
 import { AppProvider } from "@/contexts/app-context";
 
@@ -29,9 +30,10 @@ export default function DashboardLayout({
           {/* Header */}
           <header className="bg-[#141415] border-b border-[#374151] px-6 py-4">
             <div className="flex items-center justify-center relative">
-              {/* Left side - API Connection Menu */}
-              <div className="absolute left-0 flex items-center gap-4">
-                <APIConnectionDialog />
+                  {/* Left side - API Connection Menu */}
+                  <div className="absolute left-0 flex items-center gap-4">
+                    <APIConnectionDialog />
+                    <APIConfigDialog />
                 {/* WhatsApp Business Icon */}
                 <Link href="/whatsapp-config">
                   <Button
