@@ -39,7 +39,7 @@ export function APIConfigDialog() {
     type: "saipos"
   });
   const [isTesting, setIsTesting] = useState<string | null>(null);
-  const { addToast, connectedAPIs, createUserAPI, updateUserAPI, deleteUserAPI, testUserAPI, userId } = useApp();
+  const { addToast, connectedAPIs, createUserAPI, deleteUserAPI, testUserAPI, userId } = useApp();
 
   // Sincronizar configs locais com o contexto global
   useEffect(() => {

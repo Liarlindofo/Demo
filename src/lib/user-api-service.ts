@@ -47,7 +47,7 @@ export class UserAPIService {
       })
 
       console.log(`✅ API ${data.name} criada para usuário ${data.userId}`)
-      return api
+      return api as UserAPIConfig
     } catch (error) {
       console.error('❌ Erro ao criar API:', error)
       throw new Error('Erro ao criar configuração da API')
@@ -63,7 +63,7 @@ export class UserAPIService {
       })
 
       console.log(`📱 ${apis.length} APIs encontradas para usuário ${userId}`)
-      return apis
+      return apis as UserAPIConfig[]
     } catch (error) {
       console.error('❌ Erro ao buscar APIs:', error)
       throw new Error('Erro ao buscar configurações das APIs')
@@ -82,7 +82,7 @@ export class UserAPIService {
       })
 
       console.log(`✅ API ${apiId} atualizada`)
-      return api
+      return api as UserAPIConfig
     } catch (error) {
       console.error('❌ Erro ao atualizar API:', error)
       throw new Error('Erro ao atualizar configuração da API')
@@ -110,7 +110,7 @@ export class UserAPIService {
         where: { id: apiId }
       })
 
-      return api
+      return api as UserAPIConfig | null
     } catch (error) {
       console.error('❌ Erro ao buscar API:', error)
       throw new Error('Erro ao buscar configuração da API')
@@ -170,7 +170,7 @@ export class UserAPIService {
       })
 
       console.log(`🔗 ${apis.length} APIs conectadas para usuário ${userId}`)
-      return apis
+      return apis as UserAPIConfig[]
     } catch (error) {
       console.error('❌ Erro ao buscar APIs conectadas:', error)
       throw new Error('Erro ao buscar APIs conectadas')

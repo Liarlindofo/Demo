@@ -70,6 +70,13 @@ export interface SaiposStoresResponse {
   totalRecords: number;
 }
 
+interface SaiposAPIResponse {
+  data?: unknown;
+  error?: string;
+  status?: string;
+  date?: string;
+}
+
 export class SaiposAPIService {
   private config: SaiposConfig;
 
@@ -133,8 +140,8 @@ export class SaiposAPIService {
       const apiData = await response.json();
       console.log('✅ Dados reais carregados da Saipos:', apiData);
       
-      // Converter dados da API para o formato esperado
-      return this.convertSalesData(apiData);
+          // Converter dados da API para o formato esperado
+          return this.convertSalesData();
     } catch (error) {
       console.error('❌ Erro ao obter dados de vendas:', error);
       
@@ -220,7 +227,7 @@ export class SaiposAPIService {
   }
 
   // Método para converter dados da API Saipos para o formato interno
-  private convertSalesData(apiData: any): SaiposSalesData[] {
+  private convertSalesData(): SaiposSalesData[] {
     // Implementar conversão baseada na estrutura real da API Saipos
     // Por enquanto, retornar array vazio até termos a estrutura real
     return [];
@@ -252,8 +259,8 @@ export class SaiposAPIService {
       const apiData = await response.json();
       console.log('✅ Lojas reais carregadas da Saipos:', apiData);
       
-      // Converter dados da API para o formato esperado
-      return this.convertStoresData(apiData);
+          // Converter dados da API para o formato esperado
+          return this.convertStoresData();
     } catch (error) {
       console.error('❌ Erro ao obter lojas:', error);
       
@@ -309,7 +316,7 @@ export class SaiposAPIService {
   }
 
   // Método para converter dados de lojas da API Saipos para o formato interno
-  private convertStoresData(apiData: any): SaiposStore[] {
+  private convertStoresData(): SaiposStore[] {
     // Implementar conversão baseada na estrutura real da API Saipos
     // Por enquanto, retornar array vazio até termos a estrutura real
     return [];
@@ -365,7 +372,7 @@ export class SaiposAPIService {
   }
 
   // Método para converter dados em tempo real da API Saipos para o formato interno
-  private convertRealTimeData(apiData: any): SaiposSalesData {
+  private convertRealTimeData(apiData: SaiposAPIResponse): SaiposSalesData {
     // Implementar conversão baseada na estrutura real da API Saipos
     // Por enquanto, retornar dados vazios até termos a estrutura real
     return {
@@ -435,7 +442,7 @@ export class SaiposAPIService {
   }
 
   // Método para converter dados de relatório diário da API Saipos para o formato interno
-  private convertDailyReportData(apiData: any): SaiposSalesData {
+  private convertDailyReportData(apiData: SaiposAPIResponse): SaiposSalesData {
     // Implementar conversão baseada na estrutura real da API Saipos
     // Por enquanto, retornar dados vazios até termos a estrutura real
     return {

@@ -101,12 +101,90 @@ export function ReportsSection() {
 
       // Dados mockados
       setSalesData([
-        { date: "2025-01-01", totalSales: 4000, totalOrders: 240, averageTicket: 16.67, uniqueCustomers: 180, topProducts: [] },
-        { date: "2025-01-02", totalSales: 3000, totalOrders: 139, averageTicket: 21.58, uniqueCustomers: 120, topProducts: [] },
-        { date: "2025-01-03", totalSales: 2000, totalOrders: 98, averageTicket: 20.41, uniqueCustomers: 85, topProducts: [] },
-        { date: "2025-01-04", totalSales: 2780, totalOrders: 139, averageTicket: 20.0, uniqueCustomers: 110, topProducts: [] },
-        { date: "2025-01-05", totalSales: 1890, totalOrders: 95, averageTicket: 19.89, uniqueCustomers: 75, topProducts: [] },
-        { date: "2025-01-06", totalSales: 2390, totalOrders: 120, averageTicket: 19.92, uniqueCustomers: 90, topProducts: [] }
+        { 
+          date: "2025-01-01", 
+          totalSales: 4000, 
+          totalOrders: 240, 
+          averageTicket: 16.67, 
+          uniqueCustomers: 180, 
+          totalRevenue: 4000,
+          deliverySales: 2000,
+          counterSales: 1200,
+          hallSales: 600,
+          ticketSales: 200,
+          ordersByChannel: { delivery: 120, counter: 80, hall: 30, ticket: 10 },
+          topProducts: [] 
+        },
+        { 
+          date: "2025-01-02", 
+          totalSales: 3000, 
+          totalOrders: 139, 
+          averageTicket: 21.58, 
+          uniqueCustomers: 120, 
+          totalRevenue: 3000,
+          deliverySales: 1500,
+          counterSales: 900,
+          hallSales: 450,
+          ticketSales: 150,
+          ordersByChannel: { delivery: 70, counter: 45, hall: 20, ticket: 4 },
+          topProducts: [] 
+        },
+        { 
+          date: "2025-01-03", 
+          totalSales: 2000, 
+          totalOrders: 98, 
+          averageTicket: 20.41, 
+          uniqueCustomers: 85, 
+          totalRevenue: 2000,
+          deliverySales: 1000,
+          counterSales: 600,
+          hallSales: 300,
+          ticketSales: 100,
+          ordersByChannel: { delivery: 50, counter: 30, hall: 15, ticket: 3 },
+          topProducts: [] 
+        },
+        { 
+          date: "2025-01-04", 
+          totalSales: 2780, 
+          totalOrders: 139, 
+          averageTicket: 20.0, 
+          uniqueCustomers: 110, 
+          totalRevenue: 2780,
+          deliverySales: 1390,
+          counterSales: 834,
+          hallSales: 417,
+          ticketSales: 139,
+          ordersByChannel: { delivery: 70, counter: 45, hall: 20, ticket: 4 },
+          topProducts: [] 
+        },
+        { 
+          date: "2025-01-05", 
+          totalSales: 1890, 
+          totalOrders: 95, 
+          averageTicket: 19.89, 
+          uniqueCustomers: 75, 
+          totalRevenue: 1890,
+          deliverySales: 945,
+          counterSales: 567,
+          hallSales: 283,
+          ticketSales: 95,
+          ordersByChannel: { delivery: 48, counter: 30, hall: 15, ticket: 2 },
+          topProducts: [] 
+        },
+        { 
+          date: "2025-01-06", 
+          totalSales: 2390, 
+          totalOrders: 120, 
+          averageTicket: 19.92, 
+          uniqueCustomers: 90, 
+          totalRevenue: 2390,
+          deliverySales: 1195,
+          counterSales: 717,
+          hallSales: 358,
+          ticketSales: 120,
+          ordersByChannel: { delivery: 60, counter: 38, hall: 19, ticket: 3 },
+          topProducts: [] 
+        }
       ]);
     } finally {
       setIsLoading(false);
@@ -126,6 +204,12 @@ export function ReportsSection() {
         totalOrders: 47,
         averageTicket: 52.13,
         uniqueCustomers: 23,
+        totalRevenue: 2450,
+        deliverySales: 1225,
+        counterSales: 735,
+        hallSales: 367,
+        ticketSales: 123,
+        ordersByChannel: { delivery: 24, counter: 15, hall: 7, ticket: 1 },
         topProducts: [
           { name: "Pizza Margherita", quantity: 12, revenue: 240 },
           { name: "Hambúrguer Clássico", quantity: 8, revenue: 160 },
@@ -148,7 +232,7 @@ export function ReportsSection() {
       };
       updateDashboardData(initialData);
     }
-  }, [selectedPeriod, selectedStore, loadSalesData]);
+  }, [selectedPeriod, selectedStore, loadSalesData, updateDashboardData]);
 
   // 🔹 Efeito para carregar relatórios diários
   useEffect(() => {
@@ -162,7 +246,7 @@ export function ReportsSection() {
       uniqueCustomers: last.uniqueCustomers,
       isSyncing: false
     });
-  }, [salesData]);
+  }, [salesData, updateDashboardData]);
 
 
   // 🔹 Configurar atualizações em tempo real
@@ -192,12 +276,12 @@ export function ReportsSection() {
       realtimeService.unsubscribe(listenerId);
       realtimeService.disconnect();
     };
-  }, [selectedStore]);
+  }, [selectedStore, updateDashboardData]);
 
   // ✅ Memo para evitar loop infinito
   const chartData = useMemo(() => {
   if (!Array.isArray(salesData)) return [];
-  return salesData.map((item: any) => ({
+  return salesData.map((item: SaiposSalesData) => ({
     name: format(new Date(item.date), 'dd/MM'),
     vendas: item.totalSales,
     pedidos: item.totalOrders

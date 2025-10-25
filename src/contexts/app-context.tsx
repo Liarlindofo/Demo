@@ -35,6 +35,16 @@ interface DashboardData {
   isSyncing: boolean;
 }
 
+interface DatabaseAPI {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  apiKey: string;
+  baseUrl: string | null;
+  lastTest: string | null;
+}
+
 interface AppContextType {
   userId: string | null;
   setUserId: (userId: string | null) => void;
@@ -108,7 +118,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const response = await fetch(`/api/user-apis?userId=${userId}`);
       if (response.ok) {
         const data = await response.json();
-        const apis: API[] = data.apis.map((api: any) => ({
+        const apis: API[] = data.apis.map((api: DatabaseAPI) => ({
           id: api.id,
           name: api.name,
           type: api.type,
