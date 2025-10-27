@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const user = useUser({ or: 'redirect', redirectTo: '/auth/login' });
+  const user = useUser({ or: 'redirect' });
   const router = useRouter();
 
   const toggleDarkMode = () => {
