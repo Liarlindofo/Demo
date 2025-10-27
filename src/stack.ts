@@ -2,6 +2,9 @@
 
 export const stackServerApp = new StackServerApp({
   tokenStore: 'nextjs-cookie',
+  projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID || 'internal',
+  publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY,
+  secretServerKey: process.env.STACK_SECRET_SERVER_KEY,
   urls: {
     signIn: 'https://platefull.com.br/auth/login',
     signUp: 'https://platefull.com.br/auth/register',
