@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-// import { StackProvider, StackTheme } from '@stackframe/stack';
-// import { stackServerApp } from '../stack';
+import { StackProvider, StackTheme } from '@stackframe/stack';
+import { stackServerApp } from '../stack';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -29,7 +29,11 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="dark">
       <body className={bodyClasses}>
-        {children}
+        <StackProvider app={stackServerApp}>
+          <StackTheme>
+            {children}
+          </StackTheme>
+        </StackProvider>
       </body>
     </html>
   );
