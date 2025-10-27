@@ -1,106 +1,87 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Settings, User, Moon, Sun, LogOut, MessageCircle, MessageSquare } from "lucide-react";
-import { APIConnectionDialog } from "@/components/api-connection-dialog";
-import { APIConfigDialog } from "@/components/api-config-dialog";
-import { Logo } from "@/components/logo";
-import { AppProvider } from "@/contexts/app-context";
+import { useState } from 'react';
+import Link from 'next/link';
+import { useUser } from '@stackframe/stack';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Settings, User, Moon, Sun, LogOut, MessageCircle, MessageSquare } from 'lucide-react';
+import { APIConnectionDialog } from '@/components/api-connection-dialog';
+import { APIConfigDialog } from '@/components/api-config-dialog';
+import { Logo } from '@/components/logo';
+import { AppProvider } from '@/contexts/app-context';
+import { useRouter } from 'next/navigation';
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const user = useUser({ or: 'redirect', redirectTo: '/auth/login' });
+  const router = useRouter();
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
-    // Aqui você implementaria a lógica para alternar o tema
   };
+
+  const handleLogout = async () => {
+    await user.signOut();
+    router.push('/auth/login');
+  };
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <AppProvider>
-      <div className={`min-h-screen ${isDarkMode ? 'dark' : ''}`}>
+      <div className={isDarkMode ? 'min-h-screen dark' : 'min-h-screen'}>
         <div className="bg-black text-white min-h-screen">
-          {/* Header */}
           <header className="bg-[#141415] border-b border-[#374151] px-6 py-4">
             <div className="flex items-center justify-center relative">
-                  {/* Left side - API Connection Menu */}
-                  <div className="absolute left-0 flex items-center gap-4">
-                    <APIConnectionDialog />
-                    <APIConfigDialog />
-                {/* WhatsApp Business Icon */}
+              <div className="absolute left-0 flex items-center gap-4">
+                <APIConnectionDialog />
+                <APIConfigDialog />
                 <Link href="/whatsapp-config">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-green-500 hover:text-green-400 hover:bg-green-500/10"
-                    title="Configurar WhatsApp Business"
-                  >
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-green-500 hover:text-green-400 hover:bg-green-500/10" title="Configurar WhatsApp Business">
                     <MessageCircle className="h-5 w-5" />
                   </Button>
                 </Link>
-                {/* WhatsApp Tools Icon */}
                 <Link href="/whatsapp-tools">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10"
-                    title="Ferramentas WhatsApp"
-                  >
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10" title="Ferramentas WhatsApp">
                     <MessageSquare className="h-5 w-5" />
                   </Button>
                 </Link>
               </div>
-
-              {/* Logo centralizada */}
               <Link href="/" className="hover:opacity-80 transition-opacity">
                 <Logo />
               </Link>
-
-              {/* Right side - User menu and settings */}
               <div className="absolute right-0 flex items-center gap-4">
-                {/* User Avatar Menu */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src="/avatars/01.png" alt="User" />
-                        <AvatarFallback className="bg-[#001F05] text-white">U</AvatarFallback>
+                        <AvatarImage src={user.profileImageUrl || '/avatars/01.png'} alt={user.displayName || 'User'} />
+                        <AvatarFallback className="bg-[#001F05] text-white">
+                          {user.displayName?.charAt(0)?.toUpperCase() || user.primaryEmail?.charAt(0)?.toUpperCase() || 'U'}
+                        </AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-[#141415] border-[#374151] text-white">
                     <DropdownMenuItem className="hover:bg-[#374151] focus:bg-[#374151]">
                       <User className="mr-2 h-4 w-4" />
-                      Personalizar perfil
+                      {user.displayName || 'Usuario'}
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      className="hover:bg-[#374151] focus:bg-[#374151]"
-                      onClick={toggleDarkMode}
-                    >
-                      {isDarkMode ? (
-                        <>
-                          <Sun className="mr-2 h-4 w-4" />
-                          Modo claro
-                        </>
-                      ) : (
-                        <>
-                          <Moon className="mr-2 h-4 w-4" />
-                          Modo escuro
-                        </>
-                      )}
+                    <DropdownMenuItem className="hover:bg-[#374151] focus:bg-[#374151] text-xs text-gray-400">
+                      {user.primaryEmail}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="hover:bg-[#374151] focus:bg-[#374151]" onClick={toggleDarkMode}>
+                      {isDarkMode ? (<><Sun className="mr-2 h-4 w-4" />Modo claro</>) : (<><Moon className="mr-2 h-4 w-4" />Modo escuro</>)}
                     </DropdownMenuItem>
                     <DropdownMenuItem className="hover:bg-[#374151] focus:bg-[#374151]">
                       <Settings className="mr-2 h-4 w-4" />
-                      Configurações
+                      Configuracoes
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="hover:bg-[#374151] focus:bg-[#374151] text-red-400">
+                    <DropdownMenuItem className="hover:bg-[#374151] focus:bg-[#374151] text-red-400" onClick={handleLogout}>
                       <LogOut className="mr-2 h-4 w-4" />
                       Sair
                     </DropdownMenuItem>
@@ -109,11 +90,7 @@ export default function DashboardLayout({
               </div>
             </div>
           </header>
-
-          {/* Main Content */}
-          <main className="flex-1">
-            {children}
-          </main>
+          <main className="flex-1">{children}</main>
         </div>
       </div>
     </AppProvider>
