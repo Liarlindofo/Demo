@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useUser } from '@stackframe/stack';
+// import { useUser } from '@stackframe/stack';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -15,7 +15,15 @@ import { useRouter } from 'next/navigation';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const user = useUser({ or: 'redirect' });
+  // const user = useUser({ or: 'redirect' });
+  
+  // Mock user temporário - substituir quando Stack Auth estiver configurado
+  const user = {
+    displayName: 'Usuario Demo',
+    primaryEmail: 'demo@platefull.com.br',
+    profileImageUrl: null,
+  };
+  
   const router = useRouter();
 
   const toggleDarkMode = () => {
@@ -23,13 +31,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const handleLogout = async () => {
-    await user.signOut();
+    // await user.signOut();
     router.push('/auth/login');
   };
-
-  if (!user) {
-    return null;
-  }
 
   return (
     <AppProvider>
