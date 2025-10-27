@@ -1,6 +1,6 @@
 import { StackHandler } from '@stackframe/stack';
-import type { JSX } from 'react';
 
-export default function Handler(props: Record<string, unknown>): JSX.Element {
+export default function Handler(props: any) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return <StackHandler fullPage {...props} />;
 }
