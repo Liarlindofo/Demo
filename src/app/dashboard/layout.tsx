@@ -13,22 +13,11 @@ import { Logo } from '@/components/logo';
 import { AppProvider } from '@/contexts/app-context';
 import { useRouter } from 'next/navigation';
 
-// Dados mockados para desenvolvimento
-const MOCK_USER = {
-  id: 'dev-user',
-  primaryEmail: 'dev@teste.com',
-  displayName: 'Dev Teste',
-  profileImageUrl: null,
-  signOut: () => Promise.resolve(),
-};
-
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const devAuthBypass = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true';
   
-  // Sempre chamar useUser para manter as regras dos hooks
-  const realUser = useUser({ or: devAuthBypass ? 'returnNull' : 'redirect' });
-  const user = devAuthBypass ? MOCK_USER : realUser;
+  // Usar Stack Auth real - redireciona para login se não autenticado
+  const user = useUser({ or: 'redirect' });
   
   const router = useRouter();
 
@@ -37,10 +26,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const handleLogout = async () => {
-    if (!devAuthBypass && user?.signOut) {
+    if (user?.signOut) {
       await user.signOut();
     }
-    router.push('/auth/login');
+    router.push('/');
   };
 
   if (!user) {

@@ -10,18 +10,23 @@ datasource db {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  email     String     @unique
-  username  String     @unique
-  password  String
-  fullName  String?
-  cnpj      String?
-  birthDate DateTime?
-  isAdmin   Boolean    @default(false)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  stores    Store[]
-  apis      UserAPI[]
+  id            String     @id @default(cuid())
+  email         String     @unique
+  username      String     @unique
+  password      String?
+  fullName      String?
+  cnpj          String?
+  birthDate     DateTime?
+  isAdmin       Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  
+  // Stack Auth integration
+  stackUserId   String?    @unique
+  stackUser     StackUser? @relation(fields: [stackUserId], references: [id])
+  
+  stores        Store[]
+  apis          UserAPI[]
 
   @@map("users")
 }
@@ -85,13 +90,17 @@ model UserAPI {
 }
 
 model StackUser {
-  id                      String   @id @default(uuid())
-  primaryEmail            String?  @unique
+  id                      String    @id @default(uuid())
+  primaryEmail            String?   @unique
   primaryEmailVerified    DateTime?
-  createdAt               DateTime @default(now())
-  lastActiveAt            DateTime @default(now())
+  createdAt               DateTime  @default(now())
+  lastActiveAt            DateTime  @default(now())
   profileImageUrl         String?
   displayName             String?
+  
+  // Relation to internal User
+  userId                  String?
+  user                    User?
 
   @@map("stack_users")
 }

@@ -1,21 +1,22 @@
 ﻿'use client';
 
-import { SignIn } from '@stackframe/stack';
+import { SignIn, useUser } from '@stackframe/stack';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const devAuthBypass = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true';
+  const user = useUser({ or: 'returnNull' });
 
-  // Se estiver em modo bypass, redirecionar direto para o dashboard
   useEffect(() => {
-    if (devAuthBypass) {
+    // Se o usuário já está autenticado, redirecionar para o dashboard
+    if (user) {
       router.push('/dashboard');
     }
-  }, [devAuthBypass, router]);
+  }, [user, router]);
 
-  if (devAuthBypass) {
+  // Se já está autenticado, mostrar loading enquanto redireciona
+  if (user) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-white">Redirecionando...</div>

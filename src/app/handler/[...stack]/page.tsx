@@ -1,6 +1,30 @@
 import { StackHandler } from '@stackframe/stack';
+import { redirect } from 'next/navigation';
+import { stackServerApp } from '@/src/stack';
+import { syncStackAuthUser } from '@/lib/stack-auth-sync';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default function Handler(props: any) {
-  return <StackHandler fullPage {...props} />;
+export default async function Handler(props: any) {
+  try {
+    // Verificar se o usuário acabou de fazer login
+    const user = await stackServerApp.getUser();
+    
+    if (user) {
+      // Sincronizar com banco de dados local
+      await syncStackAuthUser({
+        id: user.id,
+        primaryEmail: user.primaryEmail,
+        displayName: user.displayName,
+        profileImageUrl: user.profileImageUrl,
+        primaryEmailVerified: user.primaryEmailVerified,
+      });
+      
+      // Redirecionar para o dashboard após sincronização
+      redirect('/dashboard');
+    }
+    
+    return <StackHandler fullPage {...props} />;
+  } catch (error) {
+    console.error('Erro no handler do Stack Auth:', error);
+    return <StackHandler fullPage {...props} />;
+  }
 }
