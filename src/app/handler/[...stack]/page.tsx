@@ -3,7 +3,9 @@ import { redirect } from 'next/navigation';
 import { stackServerApp } from '@/stack';
 import { syncStackAuthUser } from '@/lib/stack-auth-sync';
 
-export default async function Handler(props: any) {
+import type { JSX } from 'react';
+
+export default async function Handler(props: Record<string, unknown>): Promise<JSX.Element> {
   try {
     // Verificar se o usuário acabou de fazer login
     const user = await stackServerApp.getUser();

@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { syncStackAuthUser } from '@/lib/stack-auth-sync';
 import { stackServerApp } from '@/stack';
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     // Verificar se o usuário está autenticado no Stack Auth
     const stackUser = await stackServerApp.getUser();
