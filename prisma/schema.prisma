@@ -1,7 +1,7 @@
-// This is your Prisma schema file,
+﻿// This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?                                                           
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
@@ -38,7 +38,7 @@ model Store {
   cnpj        String?
   isActive    Boolean     @default(true)
   userId      String
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)                                                                      
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   salesData   SalesData[]
@@ -49,7 +49,7 @@ model Store {
 model SalesData {
   id              String       @id @default(cuid())
   storeId         String
-  store           Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store           Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)                                                                
   date            DateTime
   totalSales      Float
   totalOrders     Int
@@ -64,7 +64,7 @@ model SalesData {
 model TopProduct {
   id        String    @id @default(cuid())
   salesId   String
-  salesData SalesData @relation(fields: [salesId], references: [id], onDelete: Cascade)
+  salesData SalesData @relation(fields: [salesId], references: [id], onDelete: Cascade)                                                                         
   name      String
   quantity  Int
   revenue   Float
@@ -75,12 +75,12 @@ model TopProduct {
 model UserAPI {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)                                                                           
   name      String
-  type      String   // "saipos", "custom", "whatsapp"
+  type      String
   apiKey    String
   baseUrl   String?
-  status    String   @default("disconnected") // "connected", "disconnected", "error"
+  status    String   @default("disconnected")
   lastTest  DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -88,4 +88,33 @@ model UserAPI {
   @@map("user_apis")
 }
 
-// prisma/schema.prisma
+// Stack Auth Tables
+model StackUser {
+  id                      String   @id @default(uuid())
+  primaryEmail            String?  @unique
+  primaryEmailVerified    DateTime?
+  createdAt               DateTime @default(now())
+  lastActiveAt            DateTime @default(now())
+  profileImageUrl         String?
+  displayName             String?
+
+  @@map("stack_users")
+}
+
+model StackAuth {
+  id                String    @id @default(uuid())
+  stackUserId       String
+  createdAt         DateTime  @default(now())
+  userId            String?
+
+  @@map("stack_auths")
+}
+
+model StackSession {
+  id          String   @id @default(uuid())
+  stackUserId String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@map("stack_sessions")
+}
