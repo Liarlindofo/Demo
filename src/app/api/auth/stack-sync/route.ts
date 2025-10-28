@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { syncStackAuthUser } from '@/lib/stack-auth-sync';
-import { stackServerApp } from '@/src/stack';
+import { stackServerApp } from '@/stack';
 
 export async function POST(request: NextRequest) {
   try {

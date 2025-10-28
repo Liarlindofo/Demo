@@ -1,6 +1,6 @@
 import { StackHandler } from '@stackframe/stack';
 import { redirect } from 'next/navigation';
-import { stackServerApp } from '@/src/stack';
+import { stackServerApp } from '@/stack';
 import { syncStackAuthUser } from '@/lib/stack-auth-sync';
 
 export default async function Handler(props: any) {
