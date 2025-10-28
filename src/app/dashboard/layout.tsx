@@ -13,9 +13,23 @@ import { Logo } from '@/components/logo';
 import { AppProvider } from '@/contexts/app-context';
 import { useRouter } from 'next/navigation';
 
+// Dados mockados para desenvolvimento
+const MOCK_USER = {
+  id: 'dev-user',
+  primaryEmail: 'dev@teste.com',
+  displayName: 'Dev Teste',
+  profileImageUrl: null,
+  signOut: () => Promise.resolve(),
+};
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const user = useUser({ or: 'redirect' });
+  const devAuthBypass = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true';
+  
+  // Sempre chamar useUser para manter as regras dos hooks
+  const realUser = useUser({ or: devAuthBypass ? 'returnNull' : 'redirect' });
+  const user = devAuthBypass ? MOCK_USER : realUser;
+  
   const router = useRouter();
 
   const toggleDarkMode = () => {
@@ -23,12 +37,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const handleLogout = async () => {
-    await user.signOut();
+    if (!devAuthBypass && user?.signOut) {
+      await user.signOut();
+    }
     router.push('/auth/login');
   };
 
   if (!user) {
-    return null;
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <div className="text-white">Carregando...</div>
+      </div>
+    );
   }
 
   return (

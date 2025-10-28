@@ -26,14 +26,23 @@ export default function RootLayout({
 }>) {
   const bodyClasses = [geistSans.variable, geistMono.variable, 'antialiased'].join(' ');
   
+  // Modo de bypass em desenvolvimento
+  const devAuthBypass = process.env.DEV_AUTH_BYPASS === 'true';
+  
   return (
     <html lang="pt-BR" className="dark">
       <body className={bodyClasses}>
-        <StackProvider app={stackServerApp}>
-          <StackTheme>
-            {children}
-          </StackTheme>
-        </StackProvider>
+        {devAuthBypass ? (
+          // Modo bypass - sem autenticação real
+          children
+        ) : (
+          // Modo normal com Stack Auth
+          <StackProvider app={stackServerApp}>
+            <StackTheme>
+              {children}
+            </StackTheme>
+          </StackProvider>
+        )}
       </body>
     </html>
   );
