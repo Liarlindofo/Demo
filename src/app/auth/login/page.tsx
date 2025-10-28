@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const user = useUser({ or: 'returnNull' });
+  const user = useUser({ or: 'return-null' });
 
   useEffect(() => {
     // Se o usuário já está autenticado, redirecionar para o dashboard

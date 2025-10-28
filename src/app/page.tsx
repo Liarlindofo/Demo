@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function Home() {
-  const user = useUser({ or: 'returnNull' });
+  const user = useUser({ or: 'return-null' });
   const router = useRouter();
 
   useEffect(() => {
