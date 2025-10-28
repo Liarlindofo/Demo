@@ -20,7 +20,9 @@ export async function POST() {
       primaryEmail: stackUser.primaryEmail,
       displayName: stackUser.displayName,
       profileImageUrl: stackUser.profileImageUrl,
-      primaryEmailVerified: stackUser.primaryEmailVerified,
+      primaryEmailVerified: stackUser.primaryEmailVerified 
+        ? new Date() 
+        : null,
     });
 
     return NextResponse.json({

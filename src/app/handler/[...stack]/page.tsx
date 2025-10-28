@@ -7,9 +7,6 @@ export default async function Handler(props: {
   params: Promise<Record<string, string | string[]>>;
   searchParams: Promise<Record<string, string | string[]>>;
 }) {
-  const params = await props.params;
-  const searchParams = await props.searchParams;
-  
   try {
     // Verificar se o usuário acabou de fazer login
     const user = await stackServerApp.getUser();
@@ -21,7 +18,9 @@ export default async function Handler(props: {
         primaryEmail: user.primaryEmail,
         displayName: user.displayName,
         profileImageUrl: user.profileImageUrl,
-        primaryEmailVerified: user.primaryEmailVerified,
+        primaryEmailVerified: user.primaryEmailVerified 
+          ? new Date() 
+          : null,
       });
       
       // Redirecionar para o dashboard após sincronização

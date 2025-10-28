@@ -7,7 +7,7 @@ export interface StackAuthUser {
   primaryEmail?: string | null;
   displayName?: string | null;
   profileImageUrl?: string | null;
-  primaryEmailVerified?: Date | null;
+  primaryEmailVerified?: Date | null; // Transformado de boolean para Date quando necessário
 }
 
 /**
