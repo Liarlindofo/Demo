@@ -3,9 +3,12 @@ import { redirect } from 'next/navigation';
 import { stackServerApp } from '@/stack';
 import { syncStackAuthUser } from '@/lib/stack-auth-sync';
 
-import type { JSX } from 'react';
+interface HandlerProps {
+  params: Record<string, string | string[]>;
+  searchParams: Record<string, string | string[]>;
+}
 
-export default async function Handler(props: Record<string, unknown>): Promise<JSX.Element> {
+export default async function Handler({ params, searchParams }: HandlerProps) {
   try {
     // Verificar se o usuário acabou de fazer login
     const user = await stackServerApp.getUser();
@@ -24,9 +27,9 @@ export default async function Handler(props: Record<string, unknown>): Promise<J
       redirect('/dashboard');
     }
     
-    return <StackHandler fullPage {...props} />;
+    return <StackHandler fullPage params={params} searchParams={searchParams} />;
   } catch (error) {
     console.error('Erro no handler do Stack Auth:', error);
-    return <StackHandler fullPage {...props} />;
+    return <StackHandler fullPage params={params} searchParams={searchParams} />;
   }
 }
