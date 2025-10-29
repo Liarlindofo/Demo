@@ -4,11 +4,9 @@ import { StoreCarousel } from "@/components/store-carousel";
 import { ReportsSection } from "@/components/reports-section";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { APIConnectionDialog } from "@/components/api-connection-dialog";
-import { AppProvider } from "@/contexts/app-context";
 
 export default function DashboardPage() {
   return (
-    <AppProvider>
         <div className="min-h-screen bg-black">
           {/* Header com menu de APIs */}
           <header className="flex justify-between items-center p-4 bg-black/50 backdrop-blur-sm border-b border-[#374151]/30">
@@ -43,7 +41,6 @@ export default function DashboardPage() {
           {/* WhatsApp Button */}
           <WhatsAppButton />
         </div>
-      </AppProvider>
     );
   }
 
