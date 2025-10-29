@@ -34,7 +34,14 @@ export class AuthService {
         return null;
       }
 
-      const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
+		// Garantir que ambas as senhas são strings válidas antes de comparar
+		const hashedPassword = user.password;
+		if (typeof credentials.password !== 'string' || typeof hashedPassword !== 'string') {
+			// Evitar chamar bcrypt.compare com valores inválidos
+			return null; // ou: throw new Error('Dados incompletos para autenticação')
+		}
+
+		const isPasswordValid = await bcrypt.compare(credentials.password, hashedPassword);
       
       if (!isPasswordValid) {
         return null;

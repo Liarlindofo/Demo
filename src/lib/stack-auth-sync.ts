@@ -36,7 +36,8 @@ export async function syncStackAuthUser(stackUser: StackAuthUser) {
           profileImageUrl: stackUser.profileImageUrl,
           primaryEmailVerified: stackUser.primaryEmailVerified,
           lastActiveAt: new Date(),
-        }
+        },
+        include: { user: true },
       });
     } else {
       // Atualizar dados do StackUser
