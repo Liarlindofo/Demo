@@ -46,8 +46,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Campos obrigatórios: name, apiKey' }, { status: 400 })
     }
 
-    const api = await UserAPIService.createAPI({ ...body, userId: dbUser.id })
-    return NextResponse.json({ api }, { status: 201 })
+    try {
+      const api = await UserAPIService.createAPI({ ...body, userId: dbUser.id })
+      return NextResponse.json({ api }, { status: 201 })
+    } catch (e) {
+      console.error('Erro prisma ao criar API:', e)
+      return NextResponse.json({ error: 'Falha ao salvar API' }, { status: 500 })
+    }
   } catch (error) {
     console.error('Erro ao criar API:', error)
     return NextResponse.json(

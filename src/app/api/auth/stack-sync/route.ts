@@ -5,7 +5,7 @@ import { stackServerApp } from '@/stack';
 export async function POST() {
   try {
     // Verificar se o usuário está autenticado no Stack Auth
-    const stackUser = await stackServerApp.getUser();
+    const stackUser = await stackServerApp.getUser({ or: 'return-null' });
     
     if (!stackUser) {
       return NextResponse.json(
@@ -14,16 +14,29 @@ export async function POST() {
       );
     }
 
+    if (!stackUser.primaryEmail) {
+      return NextResponse.json(
+        { error: 'Conta sem email. Não é possível sincronizar usuário.' },
+        { status: 400 }
+      );
+    }
+
     // Sincronizar usuário com banco de dados local
-    const user = await syncStackAuthUser({
-      id: stackUser.id,
-      primaryEmail: stackUser.primaryEmail,
-      displayName: stackUser.displayName,
-      profileImageUrl: stackUser.profileImageUrl,
-      primaryEmailVerified: stackUser.primaryEmailVerified 
-        ? new Date() 
-        : null,
-    });
+    let user;
+    try {
+      user = await syncStackAuthUser({
+        id: stackUser.id,
+        primaryEmail: stackUser.primaryEmail,
+        displayName: stackUser.displayName,
+        profileImageUrl: stackUser.profileImageUrl,
+        primaryEmailVerified: stackUser.primaryEmailVerified 
+          ? new Date() 
+          : null,
+      });
+    } catch (e) {
+      console.error('stack-sync prisma error:', e);
+      return NextResponse.json({ error: 'Falha ao sincronizar usuário' }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
