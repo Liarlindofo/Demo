@@ -28,39 +28,41 @@ export function StoreCarousel() {
     setIsClient(true);
   }, []);
 
-  // Carregar lojas da API Saipos
+  // Carregar lojas da API Saipos (suporta até 4 APIs conectadas)
   useEffect(() => {
     const loadStores = async () => {
       try {
         setIsLoadingStores(true);
         console.log('🏪 Carregando lojas da API Saipos...');
         
-        // Verificar se há APIs conectadas
-        const connectedSaiposAPIs = connectedAPIs.filter(api => 
-          api.type === 'saipos' && api.status === 'connected' && api.apiKey
-        );
-        
+        // Verificar se há APIs conectadas (até 4)
+        const connectedSaiposAPIs = connectedAPIs
+          .filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey)
+          .slice(0, 4);
+
         if (connectedSaiposAPIs.length === 0) {
           console.log('⚠️ Nenhuma API Saipos conectada');
           setSaiposStores([]);
           return;
         }
-        
-        // Usar a primeira API conectada
-        const apiConfig = connectedSaiposAPIs[0];
-        console.log(`🔗 Usando API: ${apiConfig.name}`);
-        
-        // Criar instância da API com a configuração do usuário
-        const userSaiposAPI = new SaiposAPIService({
-          apiKey: apiConfig.apiKey!,
-          baseUrl: apiConfig.baseUrl || 'https://api.saipos.com'
-        });
-        
-        const stores = await userSaiposAPI.getStores();
-        setSaiposStores(stores);
-        
-        console.log(`✅ ${stores.length} lojas carregadas da Saipos`);
-        addToast(`${stores.length} lojas carregadas da Saipos!`, "success");
+
+        // Buscar lojas de todas as APIs conectadas e agregar
+        const allStores: SaiposStore[] = [];
+        for (const apiConfig of connectedSaiposAPIs) {
+          console.log(`🔗 Usando API: ${apiConfig.name}`);
+          const userSaiposAPI = new SaiposAPIService({
+            apiKey: apiConfig.apiKey!,
+            baseUrl: apiConfig.baseUrl || 'https://api.saipos.com'
+          });
+          const stores = await userSaiposAPI.getStores();
+          // Anotar apiId de origem
+          stores.forEach(s => (s.apiId = apiConfig.id));
+          allStores.push(...stores);
+        }
+
+        setSaiposStores(allStores);
+        console.log(`✅ ${allStores.length} lojas carregadas da Saipos (somando todas as APIs)`);
+        addToast(`${allStores.length} lojas carregadas da Saipos!`, "success");
       } catch (error) {
         console.error('❌ Erro ao carregar lojas:', error);
         addToast("Erro ao carregar lojas da Saipos", "error");
@@ -88,11 +90,8 @@ export function StoreCarousel() {
     apiId: saiposStore.apiId
   }));
 
-  // Filtrar lojas conectadas baseado nas APIs conectadas
-  const connectedStores = convertedStores.filter(store =>
-    store.apiId &&
-    connectedAPIs.some(api => api.id === store.apiId && api.status === "connected")
-  );
+  // As lojas exibidas já vêm apenas de APIs conectadas
+  const connectedStores = convertedStores;
 
   // Lógica de exibição baseada no número de lojas conectadas
   const shouldShowCarousel = connectedStores.length > 1;

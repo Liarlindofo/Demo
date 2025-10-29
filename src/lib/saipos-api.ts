@@ -471,3 +471,38 @@ export const saiposAPI = new SaiposAPIService({
 
 export default SaiposAPIService;
 
+// ===== Novo wrapper funcional conforme especificação =====
+const BASE_URL = 'https://api.saipos.com.br/v1';
+
+export const saiposHTTP = {
+  async getStores(token: string) {
+    const res = await fetch(`${BASE_URL}/stores`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error('Erro ao buscar lojas');
+    return res.json();
+  },
+
+  async getSalesData(startDate: string, endDate: string, token: string) {
+    const res = await fetch(
+      `${BASE_URL}/reports/sales?start_date=${startDate}&end_date=${endDate}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      }
+    );
+    if (!res.ok) throw new Error('Erro ao buscar dados de vendas');
+    return res.json();
+  },
+
+  async getDailyReport(date: string, token: string) {
+    const res = await fetch(`${BASE_URL}/reports/daily?date=${date}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error('Erro ao buscar relatório diário');
+    return res.json();
+  },
+};
+

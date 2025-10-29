@@ -21,6 +21,7 @@ class RealtimeService {
   private retryTimeout: number | null = null;
   private mockInterval: number | null = null;
   private listeners: Map<string, (data: RealtimeUpdate) => void> = new Map();
+  private pollingInterval: number | null = null;
 
   constructor(config: RealtimeConfig) {
     this.config = {
@@ -86,6 +87,11 @@ class RealtimeService {
     if (this.mockInterval) {
       clearInterval(this.mockInterval);
       this.mockInterval = null;
+    }
+
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
     }
   }
 
@@ -186,6 +192,40 @@ class RealtimeService {
       console.log(`📊 Enviando atualização ${updateType}:`, update);
       this.notifyListeners(update);
     }, 5000); // Envia uma atualização a cada 5 segundos
+  }
+
+  // Polling (fallback) a cada N ms
+  startPolling(fetchUpdate: () => Promise<RealtimeUpdate>, intervalMs = 60000): void {
+    // Verificar se estamos no lado do cliente
+    if (typeof window === 'undefined') {
+      console.log('⚠️ startPolling chamado no servidor, ignorando...');
+      return;
+    }
+
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+    }
+
+    const run = async () => {
+      try {
+        const update = await fetchUpdate();
+        this.notifyListeners(update);
+      } catch (error) {
+        console.error('Erro no polling de dados:', error);
+      }
+    };
+
+    // Executa imediatamente e agenda intervalos
+    run();
+    this.pollingInterval = window.setInterval(run, intervalMs);
+  }
+
+  stopPolling(): void {
+    if (typeof window === 'undefined') return;
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
   }
 }
 

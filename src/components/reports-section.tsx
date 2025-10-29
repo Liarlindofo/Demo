@@ -33,7 +33,7 @@ import {
   Bar
 } from "recharts";
 import { useApp } from "@/contexts/app-context";
-import { saiposAPI, SaiposSalesData } from "@/lib/saipos-api";
+import { saiposHTTP, SaiposSalesData } from "@/lib/saipos-api";
 import { realtimeService, RealtimeUpdate } from "@/lib/realtime-service";
 
 // Dados mockados removidos - apenas dados reais da API Saipos
@@ -47,7 +47,8 @@ export function ReportsSection() {
     setSelectedDate,
     addToast,
     dashboardData,
-    updateDashboardData
+    updateDashboardData,
+    connectedAPIs
   } = useApp();
 
   const [salesData, setSalesData] = useState<SaiposSalesData[]>([]);
@@ -84,13 +85,25 @@ export function ReportsSection() {
         case "90d":
           startDate.setDate(endDate.getDate() - 90);
           break;
+        case "1d":
+          startDate.setDate(endDate.getDate() - 1);
+          break;
         default:
           startDate.setDate(endDate.getDate() - 30);
       }
 
-      const data = await saiposAPI.getSalesData(
+      // Obter token da API conectada (da loja selecionada ou primeira conectada)
+      const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
+      if (saiposApis.length === 0) throw new Error('Nenhuma API Saipos conectada');
+      const storeHasApiId = Boolean((selectedStore as unknown as { apiId?: string })?.apiId);
+      const targetApi = storeHasApiId
+        ? (saiposApis.find(a => a.id === (selectedStore as unknown as { apiId?: string }).apiId) || saiposApis[0])
+        : saiposApis[0];
+
+      const data = await saiposHTTP.getSalesData(
         startDate.toISOString().split("T")[0],
-        endDate.toISOString().split("T")[0]
+        endDate.toISOString().split("T")[0],
+        targetApi.apiKey as string
       );
 
       setSalesData(data);
@@ -189,12 +202,19 @@ export function ReportsSection() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPeriod, addToast]);
+  }, [selectedPeriod, selectedStore, addToast]);
 
   // 🔹 Carregar dados diários
   const loadDailyData = async (date: Date) => {
     try {
-      const data = await saiposAPI.getDailyReport(date.toISOString().split("T")[0]);
+      const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
+      if (saiposApis.length === 0) throw new Error('Nenhuma API Saipos conectada');
+      const storeHasApiId = Boolean((selectedStore as unknown as { apiId?: string })?.apiId);
+      const targetApi = storeHasApiId
+        ? (saiposApis.find(a => a.id === (selectedStore as unknown as { apiId?: string }).apiId) || saiposApis[0])
+        : saiposApis[0];
+
+      const data = await saiposHTTP.getDailyReport(date.toISOString().split("T")[0], targetApi.apiKey as string);
       setDailyData(data);
     } catch (error) {
       console.error("Erro ao carregar dados diários:", error);
@@ -270,11 +290,25 @@ export function ReportsSection() {
       setTimeout(() => updateDashboardData({ isSyncing: false }), 2000);
     });
 
-    realtimeService.startMockUpdates(selectedStore.id);
+    // Iniciar polling a cada 60s usando token da API
+    const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
+    const targetApi = saiposApis[0];
+    if (targetApi) {
+      realtimeService.startPolling(async () => {
+        const today = new Date().toISOString().split('T')[0];
+        const daily = await saiposHTTP.getDailyReport(today, targetApi.apiKey as string);
+        return {
+          storeId: selectedStore.id,
+          type: 'sales',
+          data: { totalSales: daily.totalSales },
+          timestamp: new Date().toISOString(),
+        } as RealtimeUpdate;
+      }, 60000);
+    }
 
     return () => {
       realtimeService.unsubscribe(listenerId);
-      realtimeService.disconnect();
+      realtimeService.stopPolling();
     };
   }, [selectedStore, updateDashboardData]);
 
@@ -338,7 +372,7 @@ export function ReportsSection() {
 
         <div className="flex gap-2">
           <div className="flex bg-[#141415] rounded-lg p-1">
-            {["7d", "30d", "90d"].map((period) => (
+            {["1d", "7d", "30d", "90d"].map((period) => (
               <Button
                 key={period}
                 variant={selectedPeriod === period ? "default" : "ghost"}
