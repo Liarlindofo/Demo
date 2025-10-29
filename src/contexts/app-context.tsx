@@ -113,10 +113,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Carregar APIs do usuário do banco de dados
   const loadUserAPIs = useCallback(async () => {
-    if (!userId) return;
-    
     try {
-      const response = await fetch(`/api/user-apis?userId=${userId}`);
+      const response = await fetch(`/api/user-apis`);
       if (response.ok) {
         const data = await response.json();
         const apis: API[] = data.apis.map((api: DatabaseAPI) => ({
@@ -135,7 +133,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.error('Erro ao carregar APIs do banco:', error);
       addToast('Erro ao carregar configurações das APIs', 'error');
     }
-  }, [userId, addToast]);
+  }, [addToast]);
 
   // Sincronizar usuário autenticado (Stack Auth) com o banco e obter o id interno
   useEffect(() => {
@@ -184,19 +182,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Criar nova API
   const createUserAPI = useCallback(async (data: { name: string; type: 'saipos' | 'custom' | 'whatsapp'; apiKey: string; baseUrl?: string }) => {
-    if (!userId) {
-      addToast('Usuário não identificado', 'error');
-      return;
-    }
-
     try {
       const response = await fetch('/api/user-apis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          ...data
-        })
+        body: JSON.stringify(data)
       });
 
       if (response.ok) {
@@ -209,7 +199,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.error('Erro ao criar API:', error);
       addToast('Erro ao criar API', 'error');
     }
-  }, [userId, addToast, loadUserAPIs]);
+  }, [addToast, loadUserAPIs]);
 
   // Atualizar API
   const updateUserAPI = useCallback(async (apiId: string, data: Partial<API>) => {
