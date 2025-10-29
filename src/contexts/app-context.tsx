@@ -74,8 +74,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  // Usar um userId fixo para teste, sem necessidade de login
-  const [userId, setUserId] = useState<string | null>("test-user-123");
+  // userId agora vem do usuário autenticado (Stack Auth -> sync -> DB)
+  const [userId, setUserId] = useState<string | null>(null);
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState("7d");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -135,6 +135,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addToast('Erro ao carregar configurações das APIs', 'error');
     }
   }, [userId, addToast]);
+
+  // Sincronizar usuário autenticado (Stack Auth) com o banco e obter o id interno
+  useEffect(() => {
+    let cancelled = false;
+    const syncCurrentUser = async () => {
+      try {
+        const res = await fetch('/api/auth/stack-sync', { method: 'POST' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const dbUserId: string | undefined = data?.user?.id;
+        if (!cancelled && dbUserId) {
+          setUserId(dbUserId);
+        }
+      } catch (e) {
+        // silencioso: em modo anônimo/bypass pode não haver usuário
+        console.warn('stack-sync indisponível ou usuário não autenticado');
+      }
+    };
+    // Só tentar se ainda não temos userId
+    if (!userId) {
+      syncCurrentUser();
+    }
+    return () => { cancelled = true; };
+  }, [userId]);
 
   // Carregar APIs quando o userId mudar
   useEffect(() => {
