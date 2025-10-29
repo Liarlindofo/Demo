@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import { SaiposAPIService } from '@/lib/saipos-api'
 
 const prisma = new PrismaClient()
 
@@ -125,17 +126,24 @@ export class UserAPIService {
         throw new Error('API não encontrada')
       }
 
-      // Simular teste de conexão (aqui você implementaria o teste real)
       console.log(`🔗 Testando conexão com ${api.name}...`)
       console.log(`📍 URL: ${api.baseUrl}`)
-      console.log(`🔑 API Key: ${api.apiKey.substring(0, 20)}...`)
+      console.log(`🔑 API Key: ${api.apiKey.substring(0, 12)}...`)
 
-      // Simular delay da API
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      // Simular resposta da API (70% de chance de sucesso)
-      const isConnected = Math.random() > 0.3
-      const status = isConnected ? 'connected' : 'error'
+      // Teste REAL: tentar buscar lojas com o token
+      const client = new SaiposAPIService({ apiKey: api.apiKey, baseUrl: api.baseUrl || 'https://api.saipos.com' })
+      let status: 'connected' | 'error' = 'error'
+      try {
+        const ok = await client.testConnection()
+        if (ok) {
+          // opcional: verificar se retorna ao menos uma loja
+          await client.getStores().catch(() => {})
+          status = 'connected'
+        }
+      } catch (e) {
+        console.error('Falha no teste real:', e)
+        status = 'error'
+      }
 
       // Atualizar status no banco
       const updatedAPI = await this.updateAPI(apiId, {

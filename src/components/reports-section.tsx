@@ -33,7 +33,7 @@ import {
   Bar
 } from "recharts";
 import { useApp } from "@/contexts/app-context";
-import { saiposHTTP, SaiposSalesData } from "@/lib/saipos-api";
+import { saiposHTTP, SaiposSalesData, normalizeSalesResponse, normalizeDailyResponse } from "@/lib/saipos-api";
 import { realtimeService, RealtimeUpdate } from "@/lib/realtime-service";
 
 // Dados mockados removidos - apenas dados reais da API Saipos
@@ -100,13 +100,18 @@ export function ReportsSection() {
         ? (saiposApis.find(a => a.id === (selectedStore as unknown as { apiId?: string }).apiId) || saiposApis[0])
         : saiposApis[0];
 
-      const data = await saiposHTTP.getSalesData(
+      const raw = await saiposHTTP.getSalesData(
         startDate.toISOString().split("T")[0],
         endDate.toISOString().split("T")[0],
         targetApi.apiKey as string
       );
 
-      setSalesData(data);
+      const normalized = normalizeSalesResponse(raw);
+      if (!Array.isArray(normalized) || normalized.length === 0) {
+        throw new Error('Resposta da API sem dados utilizáveis');
+      }
+
+      setSalesData(normalized);
       addToast("Dados atualizados com sucesso!", "success");
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
@@ -202,7 +207,7 @@ export function ReportsSection() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPeriod, selectedStore, addToast]);
+  }, [selectedPeriod, selectedStore, addToast, connectedAPIs]);
 
   // 🔹 Carregar dados diários
   const loadDailyData = async (date: Date) => {
@@ -214,8 +219,9 @@ export function ReportsSection() {
         ? (saiposApis.find(a => a.id === (selectedStore as unknown as { apiId?: string }).apiId) || saiposApis[0])
         : saiposApis[0];
 
-      const data = await saiposHTTP.getDailyReport(date.toISOString().split("T")[0], targetApi.apiKey as string);
-      setDailyData(data);
+      const raw = await saiposHTTP.getDailyReport(date.toISOString().split("T")[0], targetApi.apiKey as string);
+      const normalized = normalizeDailyResponse(raw);
+      setDailyData(normalized);
     } catch (error) {
       console.error("Erro ao carregar dados diários:", error);
       setDailyData({
@@ -310,7 +316,7 @@ export function ReportsSection() {
       realtimeService.unsubscribe(listenerId);
       realtimeService.stopPolling();
     };
-  }, [selectedStore, updateDashboardData]);
+  }, [selectedStore, updateDashboardData, connectedAPIs]);
 
   // ✅ Memo para evitar loop infinito
   const chartData = useMemo(() => {

@@ -139,9 +139,10 @@ export class SaiposAPIService {
 
       const apiData = await response.json();
       console.log('✅ Dados reais carregados da Saipos:', apiData);
-      
-          // Converter dados da API para o formato esperado
-          return this.convertSalesData();
+
+      // Converter dados da API para o formato esperado
+      const normalized = normalizeSalesResponse(apiData);
+      return normalized;
     } catch (error) {
       console.error('❌ Erro ao obter dados de vendas:', error);
       
@@ -228,8 +229,6 @@ export class SaiposAPIService {
 
   // Método para converter dados da API Saipos para o formato interno
   private convertSalesData(): SaiposSalesData[] {
-    // Implementar conversão baseada na estrutura real da API Saipos
-    // Por enquanto, retornar array vazio até termos a estrutura real
     return [];
   }
 
@@ -258,9 +257,10 @@ export class SaiposAPIService {
 
       const apiData = await response.json();
       console.log('✅ Lojas reais carregadas da Saipos:', apiData);
-      
-          // Converter dados da API para o formato esperado
-          return this.convertStoresData();
+
+      // Converter dados da API para o formato esperado
+      const normalized = normalizeStoresResponse(apiData);
+      return normalized;
     } catch (error) {
       console.error('❌ Erro ao obter lojas:', error);
       
@@ -317,8 +317,6 @@ export class SaiposAPIService {
 
   // Método para converter dados de lojas da API Saipos para o formato interno
   private convertStoresData(): SaiposStore[] {
-    // Implementar conversão baseada na estrutura real da API Saipos
-    // Por enquanto, retornar array vazio até termos a estrutura real
     return [];
   }
 
@@ -346,9 +344,10 @@ export class SaiposAPIService {
 
       const apiData = await response.json();
       console.log('✅ Dados em tempo real carregados da Saipos:', apiData);
-      
+
       // Converter dados da API para o formato esperado
-      return this.convertRealTimeData(apiData);
+      const normalized = normalizeDailyResponse(apiData);
+      return normalized;
     } catch (error) {
       console.error('❌ Erro ao obter dados em tempo real:', error);
       
@@ -373,23 +372,7 @@ export class SaiposAPIService {
 
   // Método para converter dados em tempo real da API Saipos para o formato interno
   private convertRealTimeData(apiData: SaiposAPIResponse): SaiposSalesData {
-    // Implementar conversão baseada na estrutura real da API Saipos
-    // Por enquanto, retornar dados vazios até termos a estrutura real
-    return {
-      date: apiData.date || new Date().toISOString().split('T')[0],
-      totalSales: 0,
-      totalOrders: 0,
-      averageTicket: 0,
-      uniqueCustomers: 0,
-      totalRevenue: 0,
-      ordersByChannel: {
-        delivery: 0,
-        counter: 0,
-        hall: 0,
-        ticket: 0
-      },
-      topProducts: []
-    };
+    return normalizeDailyResponse(apiData);
   }
 
   // Método para obter relatório diário da API real da Saipos
@@ -416,9 +399,10 @@ export class SaiposAPIService {
 
       const apiData = await response.json();
       console.log('✅ Relatório diário real carregado da Saipos:', apiData);
-      
+
       // Converter dados da API para o formato esperado
-      return this.convertDailyReportData(apiData);
+      const normalized = normalizeDailyResponse(apiData);
+      return normalized;
     } catch (error) {
       console.error('❌ Erro ao obter relatório diário:', error);
       
@@ -443,23 +427,7 @@ export class SaiposAPIService {
 
   // Método para converter dados de relatório diário da API Saipos para o formato interno
   private convertDailyReportData(apiData: SaiposAPIResponse): SaiposSalesData {
-    // Implementar conversão baseada na estrutura real da API Saipos
-    // Por enquanto, retornar dados vazios até termos a estrutura real
-    return {
-      date: apiData.date || new Date().toISOString().split('T')[0],
-      totalSales: 0,
-      totalOrders: 0,
-      averageTicket: 0,
-      uniqueCustomers: 0,
-      totalRevenue: 0,
-      ordersByChannel: {
-        delivery: 0,
-        counter: 0,
-        hall: 0,
-        ticket: 0
-      },
-      topProducts: []
-    };
+    return normalizeDailyResponse(apiData);
   }
 }
 
@@ -505,4 +473,149 @@ export const saiposHTTP = {
     return res.json();
   },
 };
+
+// ===== Normalizadores para respostas desconhecidas da API =====
+type JsonObject = Record<string, unknown>;
+
+function asArray(value: unknown): JsonObject[] {
+  return Array.isArray(value) ? (value as JsonObject[]) : [];
+}
+
+function getProp(obj: JsonObject | undefined, key: string): unknown {
+  return obj ? (obj as Record<string, unknown>)[key] : undefined;
+}
+
+function toStringVal(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return fallback;
+}
+
+function toNumberVal(value: unknown, fallback = 0): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  }
+  return fallback;
+}
+
+export function normalizeStoresResponse(apiJson: unknown): SaiposStore[] {
+  try {
+    const root = (apiJson ?? {}) as JsonObject;
+    const candidate = Array.isArray(apiJson)
+      ? (apiJson as JsonObject[])
+      : (getProp(root, 'data') as unknown) ?? getProp(root, 'stores') ?? getProp(root, 'results');
+    const list = asArray(candidate);
+    if (!Array.isArray(list)) return [];
+    return list.map((itemObj: JsonObject, idx: number) => ({
+      id: toStringVal(itemObj.id ?? itemObj.store_id ?? itemObj.uuid ?? idx + 1),
+      name: toStringVal(itemObj.name ?? itemObj.fantasy_name ?? itemObj.tradingName ?? `Loja ${idx + 1}`),
+      address: toStringVal(itemObj.address),
+      phone: toStringVal(itemObj.phone),
+      status: (itemObj.active as boolean) === false ? 'inactive' : 'active',
+      cnpj: toStringVal(itemObj.cnpj) || undefined,
+      city: toStringVal(itemObj.city) || undefined,
+      state: toStringVal(itemObj.state) || undefined,
+      zipCode: toStringVal(itemObj.zipCode) || undefined,
+      lastSync: toStringVal(getProp(itemObj, 'last_sync')) || undefined,
+      apiId: toStringVal(getProp(itemObj, 'apiId')) || undefined,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
+  try {
+    const root = (apiJson ?? {}) as JsonObject;
+    const arrCandidate = Array.isArray(apiJson) ? apiJson : getProp(root, 'data') ?? getProp(root, 'results');
+    const arr = asArray(arrCandidate);
+    if (Array.isArray(arr) && arr.length > 0) {
+      return arr.map((row: JsonObject) => ({
+        date: toStringVal(row.date ?? row.day ?? new Date().toISOString().split('T')[0]),
+        totalSales: toNumberVal(row.total_sales ?? row.revenue ?? 0),
+        totalOrders: toNumberVal(row.total_orders ?? row.orders ?? 0),
+        averageTicket: toNumberVal(row.avg_ticket ?? row.average_ticket ?? 0),
+        uniqueCustomers: toNumberVal(row.unique_customers ?? 0),
+        totalRevenue: toNumberVal(row.total_revenue ?? row.revenue ?? 0),
+        ordersByChannel: {
+          delivery: toNumberVal(row.delivery ?? 0),
+          counter: toNumberVal(row.counter ?? 0),
+          hall: toNumberVal(row.hall ?? 0),
+          ticket: toNumberVal(row.ticket ?? 0),
+        },
+        topProducts: (() => {
+          const tp = getProp(row, 'top_products');
+          const arr = asArray(tp);
+          return arr.map((p: JsonObject) => ({
+              name: toStringVal(p.name),
+              quantity: toNumberVal(p.quantity),
+              revenue: toNumberVal(p.revenue),
+            }));
+        })(),
+      }));
+    }
+    // Fallback quando vem só um summary
+    const summary = getProp(root, 'summary') as JsonObject | undefined;
+    if (summary) {
+      return [
+        {
+          date: new Date().toISOString().split('T')[0],
+          totalSales: toNumberVal(summary.totalSales ?? summary.revenue ?? 0),
+          totalOrders: toNumberVal(summary.totalOrders ?? 0),
+          averageTicket: toNumberVal(summary.averageTicket ?? 0),
+          uniqueCustomers: toNumberVal(summary.uniqueCustomers ?? 0),
+          totalRevenue: toNumberVal(summary.totalSales ?? summary.revenue ?? 0),
+          ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
+          topProducts: [],
+        },
+      ];
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
+  try {
+    const root = (apiJson ?? {}) as JsonObject;
+    const dataCandidate = getProp(root, 'data');
+    const item = asArray(dataCandidate)[0] ?? (dataCandidate as JsonObject | undefined) ?? (apiJson as JsonObject);
+    return {
+      date: toStringVal(item?.date ?? new Date().toISOString().split('T')[0]),
+      totalSales: toNumberVal(item?.total_sales ?? item?.revenue ?? 0),
+      totalOrders: toNumberVal(item?.total_orders ?? item?.orders ?? 0),
+      averageTicket: toNumberVal(item?.avg_ticket ?? item?.average_ticket ?? 0),
+      uniqueCustomers: toNumberVal(item?.unique_customers ?? 0),
+      totalRevenue: toNumberVal(item?.total_revenue ?? item?.revenue ?? 0),
+      ordersByChannel: {
+        delivery: toNumberVal(item?.delivery ?? 0),
+        counter: toNumberVal(item?.counter ?? 0),
+        hall: toNumberVal(item?.hall ?? 0),
+        ticket: toNumberVal(item?.ticket ?? 0),
+      },
+      topProducts: (() => {
+        const tp = getProp(item as JsonObject, 'top_products');
+        return asArray(tp).map((p: JsonObject) => ({
+          name: toStringVal(p?.name),
+          quantity: toNumberVal(p?.quantity),
+          revenue: toNumberVal(p?.revenue),
+        }));
+      })(),
+    };
+  } catch {
+    return {
+      date: new Date().toISOString().split('T')[0],
+      totalSales: 0,
+      totalOrders: 0,
+      averageTicket: 0,
+      uniqueCustomers: 0,
+      totalRevenue: 0,
+      ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
+      topProducts: [],
+    };
+  }
+}
 
