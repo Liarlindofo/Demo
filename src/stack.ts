@@ -24,6 +24,6 @@ export const stackServerApp = new StackServerApp({
     afterSignIn: `${baseUrl}/dashboard`,
     afterSignUp: `${baseUrl}/dashboard`,
     afterSignOut: `${baseUrl}/`,
-    handler: `${baseUrl}/handler`,
+    handler: `${baseUrl}/api/handler`,
   },
 });

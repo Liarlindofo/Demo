@@ -6,7 +6,7 @@ export function middleware(request: NextRequest) {
 
   // Limpar parâmetros de URL após autenticação
   // Isso remove os parâmetros visíveis como ?code=xxx e ?after_auth_return_to=...
-  if (pathname.startsWith('/handler')) {
+  if (pathname.startsWith('/api/handler') || pathname.startsWith('/handler')) {
     const code = searchParams.get('code');
     const afterAuthReturnTo = searchParams.get('after_auth_return_to');
 
@@ -35,6 +35,7 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/handler/:path*',
+    '/api/handler/:path*',
     '/dashboard/:path*',
   ],
 };
