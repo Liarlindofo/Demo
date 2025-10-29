@@ -18,7 +18,7 @@ interface LocalAPIForm {
 }
 
 export default function ConnectionsPage() {
-  const { connectedAPIs, loadUserAPIs, createUserAPI, updateUserAPI, deleteUserAPI, testUserAPI, addToast } = useApp();
+  const { userId, connectedAPIs, loadUserAPIs, createUserAPI, updateUserAPI, deleteUserAPI, testUserAPI, addToast } = useApp();
   const [forms, setForms] = useState<LocalAPIForm[]>([]);
   const saiposAPIs = useMemo(() => connectedAPIs.filter(a => a.type === 'saipos'), [connectedAPIs]);
 
@@ -27,7 +27,7 @@ export default function ConnectionsPage() {
   }, [loadUserAPIs]);
 
   useEffect(() => {
-    const mapped = saiposAPIs.map(api => ({ id: api.id, name: api.name, apiKey: api.apiKey || '', baseUrl: api.baseUrl || '', avatar: `/avatars/store-1.png` }));
+    const mapped = saiposAPIs.map(api => ({ id: api.id, name: api.name, apiKey: api.apiKey || '', baseUrl: api.baseUrl || 'https://api.saipos.com.br/v1', avatar: `/avatars/store-1.png` }));
     setForms(mapped);
   }, [saiposAPIs]);
 
@@ -35,7 +35,7 @@ export default function ConnectionsPage() {
 
   const handleAdd = () => {
     if (!canAdd) return;
-    setForms(prev => [...prev, { name: `Loja ${prev.length + 1}`, apiKey: '', baseUrl: 'https://api.saipos.com', avatar: `/avatars/store-${(prev.length % 4) + 1}.png` }]);
+    setForms(prev => [...prev, { name: `Loja ${prev.length + 1}`, apiKey: '', baseUrl: 'https://api.saipos.com.br/v1', avatar: `/avatars/store-${(prev.length % 4) + 1}.png` }]);
   };
 
   const handleSave = async (idx: number) => {
@@ -124,7 +124,7 @@ export default function ConnectionsPage() {
                 {f.id && (
                   <Button variant="secondary" onClick={() => handleTest(idx)} className="bg-[#0f0f10] border border-[#374151] text-white hover:bg-[#1f1f22]">Verificar conexão</Button>
                 )}
-                <Button onClick={() => handleSave(idx)} className="bg-[#001F05]">Salvar</Button>
+                <Button onClick={() => handleSave(idx)} className="bg-[#001F05]" disabled={!userId}>Salvar</Button>
                 <Button variant="destructive" onClick={() => handleDelete(idx)}>Excluir</Button>
               </div>
             </div>
@@ -141,6 +141,7 @@ export default function ConnectionsPage() {
             <li>Use tokens Bearer da sua conta Saipos (nunca exponha publicamente).</li>
             <li>Você pode conectar até 4 APIs (uma por loja).</li>
             <li>Após conectar, suas lojas aparecerão no carrossel do dashboard.</li>
+            {!userId && (<li className="text-red-400">Faça login para salvar suas APIs.</li>)}
           </ul>
         </CardContent>
       </Card>
