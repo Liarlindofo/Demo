@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Settings, User, Moon, Sun, LogOut, MessageCircle, MessageSquare } from 'lucide-react';
-import { APIConnectionDialog } from '@/components/api-connection-dialog';
-import { APIConfigDialog } from '@/components/api-config-dialog';
+import Link from 'next/link';
 import { Logo } from '@/components/logo';
 import { AppProvider } from '@/contexts/app-context';
 import { useRouter } from 'next/navigation';
@@ -47,8 +46,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <header className="bg-[#141415] border-b border-[#374151] px-6 py-4">
             <div className="flex items-center justify-center relative">
               <div className="absolute left-0 flex items-center gap-4">
-                <APIConnectionDialog />
-                <APIConfigDialog />
+                <Link href="/connections">
+                  <Button variant="ghost" size="sm" className="h-8 px-3 text-green-500 hover:text-green-400 hover:bg-green-500/10">
+                    Conexões Saipos
+                  </Button>
+                </Link>
                 <Link href="/whatsapp-config">
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-green-500 hover:text-green-400 hover:bg-green-500/10" title="Configurar WhatsApp Business">
                     <MessageCircle className="h-5 w-5" />

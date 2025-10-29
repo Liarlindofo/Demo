@@ -8,6 +8,7 @@ interface Store {
   avatar: string;
   status: "connected" | "disconnected";
   lastSync?: string;
+  apiId?: string;
 }
 
 interface Toast {

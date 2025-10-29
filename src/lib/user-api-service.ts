@@ -42,7 +42,7 @@ export class UserAPIService {
           name: data.name,
           type: data.type,
           apiKey: data.apiKey,
-          baseUrl: data.baseUrl || 'https://api.saipos.com',
+          baseUrl: data.baseUrl || 'https://api.saipos.com.br/v1',
           status: 'disconnected'
         }
       })

@@ -95,9 +95,8 @@ export function ReportsSection() {
       // Obter token da API conectada (da loja selecionada ou primeira conectada)
       const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
       if (saiposApis.length === 0) throw new Error('Nenhuma API Saipos conectada');
-      const storeHasApiId = Boolean((selectedStore as unknown as { apiId?: string })?.apiId);
-      const targetApi = storeHasApiId
-        ? (saiposApis.find(a => a.id === (selectedStore as unknown as { apiId?: string }).apiId) || saiposApis[0])
+      const targetApi = selectedStore?.apiId
+        ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
 
       const raw = await saiposHTTP.getSalesData(
@@ -214,9 +213,8 @@ export function ReportsSection() {
     try {
       const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
       if (saiposApis.length === 0) throw new Error('Nenhuma API Saipos conectada');
-      const storeHasApiId = Boolean((selectedStore as unknown as { apiId?: string })?.apiId);
-      const targetApi = storeHasApiId
-        ? (saiposApis.find(a => a.id === (selectedStore as unknown as { apiId?: string }).apiId) || saiposApis[0])
+      const targetApi = selectedStore?.apiId
+        ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
 
       const raw = await saiposHTTP.getDailyReport(date.toISOString().split("T")[0], targetApi.apiKey as string);

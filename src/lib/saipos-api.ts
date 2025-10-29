@@ -94,7 +94,7 @@ export class SaiposAPIService {
       console.log('🔗 Testando conexão real com Saipos...');
       
       // Fazer chamada real para a API da Saipos
-      const response = await fetch(`${this.config.baseUrl}/api/v1/test`, {
+      const response = await fetch(`${this.config.baseUrl}/test`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.config.apiKey}`,
@@ -125,7 +125,7 @@ export class SaiposAPIService {
       console.log(`📊 Buscando dados reais de vendas da Saipos: ${startDate} até ${endDate}`);
       
       // Fazer chamada real para a API da Saipos
-      const response = await fetch(`${this.config.baseUrl}/api/v1/sales?startDate=${startDate}&endDate=${endDate}`, {
+      const response = await fetch(`${this.config.baseUrl}/reports/sales?start_date=${startDate}&end_date=${endDate}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.config.apiKey}`,
@@ -243,7 +243,7 @@ export class SaiposAPIService {
       console.log('🏪 Buscando lojas reais da Saipos...');
       
       // Fazer chamada real para a API da Saipos
-      const response = await fetch(`${this.config.baseUrl}/api/v1/stores`, {
+      const response = await fetch(`${this.config.baseUrl}/stores`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.config.apiKey}`,
@@ -330,7 +330,7 @@ export class SaiposAPIService {
       console.log('⚡ Buscando dados em tempo real da Saipos...');
       
       // Fazer chamada real para a API da Saipos
-      const response = await fetch(`${this.config.baseUrl}/api/v1/realtime`, {
+      const response = await fetch(`${this.config.baseUrl}/realtime`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.config.apiKey}`,
@@ -385,7 +385,7 @@ export class SaiposAPIService {
       console.log(`📊 Gerando relatório diário real da Saipos para: ${date}`);
       
       // Fazer chamada real para a API da Saipos
-      const response = await fetch(`${this.config.baseUrl}/api/v1/daily-report?date=${date}`, {
+      const response = await fetch(`${this.config.baseUrl}/reports/daily?date=${date}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.config.apiKey}`,
@@ -434,7 +434,7 @@ export class SaiposAPIService {
 // Instância padrão do serviço (você pode configurar com suas credenciais)
 export const saiposAPI = new SaiposAPIService({
   apiKey: process.env.NEXT_PUBLIC_SAIPOS_API_KEY || '',
-  baseUrl: process.env.NEXT_PUBLIC_SAIPOS_BASE_URL || 'https://api.saipos.com',
+  baseUrl: process.env.NEXT_PUBLIC_SAIPOS_BASE_URL || 'https://api.saipos.com.br/v1',
 });
 
 export default SaiposAPIService;
