@@ -103,6 +103,10 @@ export async function syncStackAuthUser(stackUser: StackAuthUser) {
     return newUser;
   } catch (error) {
     console.error('Erro ao sincronizar usuário do Stack Auth:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('DATABASE_URL') || errorMessage.includes('Environment variable not found')) {
+      throw new Error('Variável de ambiente DATABASE_URL não configurada. Configure-a nas variáveis de ambiente da Vercel.');
+    }
     throw error;
   }
 }

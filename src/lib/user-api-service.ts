@@ -3,6 +3,11 @@ import { SaiposAPIService } from '@/lib/saipos-api'
 
 const prisma = new PrismaClient()
 
+// Verificar se DATABASE_URL está configurada
+if (!process.env.DATABASE_URL) {
+  console.error('⚠️ DATABASE_URL não está configurada! Configure-a nas variáveis de ambiente.');
+}
+
 export interface UserAPIConfig {
   id: string
   userId: string
