@@ -91,54 +91,52 @@ export class SaiposAPIService {
         throw new Error('API Key não configurada');
       }
 
-      console.log('🔗 Testando conexão real com Saipos...');
-      
-      // Testar usando o endpoint real de lojas (ou stores) que deve existir na API Saipos
-      // Se não existir /stores, tenta /reports/sales ou endpoint básico
       const baseUrl = this.config.baseUrl || 'https://api.saipos.com.br/v1';
+      const token = this.config.apiKey.trim();
       
-      // Tentar múltiplos endpoints possíveis
-      const endpointsToTry = ['/stores', '/reports/sales', '/stores/list'];
+      // Remover "Bearer " se o usuário colou com o prefixo
+      const cleanToken = token.replace(/^Bearer\s+/i, '');
       
-      for (const endpoint of endpointsToTry) {
-        try {
-          const response = await fetch(`${baseUrl}${endpoint}?limit=1`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${this.config.apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            // Timeout de 10 segundos
-            signal: AbortSignal.timeout(10000),
-          });
+      console.log('🔗 Testando conexão real com Saipos...');
+      console.log(`📍 URL: ${baseUrl}/stores`);
+      
+      // Usar o mesmo endpoint que funciona no saiposHTTP
+      const response = await fetch(`${baseUrl}/stores`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${cleanToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-          if (response.ok || response.status === 200 || response.status === 201) {
-            console.log('✅ Conexão com Saipos estabelecida!');
-            return true;
-          }
-          
-          // Se retornar 401 ou 403, o token está inválido
-          if (response.status === 401 || response.status === 403) {
-            throw new Error('Token inválido ou sem permissão');
-          }
-          
-          // Se retornar 404, tentar próximo endpoint
-          if (response.status === 404) {
-            continue;
-          }
-        } catch (e) {
-          // Se o erro for sobre token inválido, propagar
-          if (e instanceof Error && e.message.includes('Token inválido')) {
-            throw e;
-          }
-          // Caso contrário, tentar próximo endpoint
-          continue;
-        }
+      const responseText = await response.text();
+      let responseData: unknown;
+      
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = responseText;
+      }
+
+      if (response.ok) {
+        console.log('✅ Conexão com Saipos estabelecida!');
+        return true;
       }
       
-      // Se nenhum endpoint funcionou, retornar false
-      console.error('❌ Nenhum endpoint da API Saipos respondeu');
-      return false;
+      // Capturar mensagem de erro específica da API
+      let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+      if (responseData && typeof responseData === 'object') {
+        const errorObj = responseData as { message?: string; error?: string; detail?: string };
+        errorMessage = errorObj.message || errorObj.error || errorObj.detail || errorMessage;
+      }
+      
+      // Se retornar 401 ou 403, o token está inválido
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`Token inválido ou sem permissão: ${errorMessage}`);
+      }
+      
+      // Outros erros
+      throw new Error(errorMessage);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('❌ Erro ao testar conexão com Saipos:', errorMessage);

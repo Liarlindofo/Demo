@@ -178,18 +178,28 @@ export class UserAPIService {
         lastTest: new Date()
       })
 
-      console.log(`✅ Teste concluído: ${status}`)
+      if (status === 'connected') {
+        console.log(`✅ Teste concluído: ${status}`)
+      } else {
+        console.log(`⚠️ Teste concluído: ${status}`)
+      }
       return updatedAPI
     } catch (error) {
-      console.error('❌ Erro ao testar API:', error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error('❌ Erro ao testar API:', errorMessage)
       
       // Marcar como erro no banco
-      await this.updateAPI(apiId, {
-        status: 'error',
-        lastTest: new Date()
-      })
+      try {
+        await this.updateAPI(apiId, {
+          status: 'error',
+          lastTest: new Date()
+        })
+      } catch (e) {
+        console.error('Erro ao atualizar status no banco:', e)
+      }
 
-      throw error
+      // Re-throw com mensagem específica
+      throw new Error(errorMessage)
     }
   }
 
