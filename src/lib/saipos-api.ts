@@ -101,13 +101,27 @@ export class SaiposAPIService {
       console.log(`📍 URL: ${baseUrl}/stores`);
       
       // Usar o mesmo endpoint que funciona no saiposHTTP
-      const response = await fetch(`${baseUrl}/stores`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${cleanToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      let response: Response;
+      try {
+        response = await fetch(`${baseUrl}/stores`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${cleanToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      } catch (fetchError) {
+        // Erro de rede ou conexão
+        const networkError = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        console.error('❌ Erro de rede ao conectar com Saipos:', networkError);
+        
+        // Verificar se é erro de DNS ou conexão
+        if (networkError.includes('ECONNREFUSED') || networkError.includes('ENOTFOUND') || networkError.includes('ETIMEDOUT')) {
+          throw new Error(`Não foi possível conectar com a API Saipos. Verifique a URL base: ${baseUrl}`);
+        }
+        
+        throw new Error(`Erro de conexão: ${networkError}`);
+      }
 
       const responseText = await response.text();
       let responseData: unknown;
@@ -133,6 +147,11 @@ export class SaiposAPIService {
       // Se retornar 401 ou 403, o token está inválido
       if (response.status === 401 || response.status === 403) {
         throw new Error(`Token inválido ou sem permissão: ${errorMessage}`);
+      }
+      
+      // Se retornar 404, o endpoint pode não existir
+      if (response.status === 404) {
+        throw new Error(`Endpoint não encontrado. Verifique se a URL base está correta: ${baseUrl}`);
       }
       
       // Outros erros
