@@ -107,6 +107,9 @@ export async function syncStackAuthUser(stackUser: StackAuthUser) {
     if (errorMessage.includes('DATABASE_URL') || errorMessage.includes('Environment variable not found')) {
       throw new Error('Variável de ambiente DATABASE_URL não configurada. Configure-a nas variáveis de ambiente da Vercel.');
     }
+    if (errorMessage.includes('does not exist') || errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
+      throw new Error('Tabelas do banco de dados não foram criadas. Execute: npx prisma db push (local) ou configure migrações na Vercel.');
+    }
     throw error;
   }
 }

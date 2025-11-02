@@ -11,7 +11,8 @@
                     "db:generate":  "prisma generate",
                     "db:push":  "prisma db push",
                     "db:migrate":  "prisma migrate dev",
-                    "vercel-build":  "npm run db:generate \u0026\u0026 npm run build"
+                    "vercel-build":  "npm run db:generate && npm run db:push && npm run build",
+                    "db:deploy":  "prisma migrate deploy"
                 },
     "dependencies":  {
                          "@hookform/resolvers":  "^5.2.2",
