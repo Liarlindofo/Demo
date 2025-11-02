@@ -53,8 +53,9 @@ export function APIConnectionDialog() {
       addToast('API conectada com sucesso!', 'success');
       setIsOpen(false);
       setApiKey('');
-    } catch (e: any) {
-      setErrorMsg(e?.message || 'Erro ao conectar API');
+    } catch (e: unknown) {
+      const message = (e as Error)?.message || 'Erro ao conectar API';
+      setErrorMsg(message);
     } finally {
       setIsSubmitting(false);
     }

@@ -137,9 +137,10 @@ export default function ConnectionsPage() {
       setIsPopupOpen(false);
       setPopupToken('');
       await loadUserAPIs();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Popup connect error:', e);
-      setPopupError(e?.message || 'Erro ao conectar API');
+      const message = (e as Error)?.message || 'Erro ao conectar API';
+      setPopupError(message);
     } finally {
       setIsSubmitting(false);
     }

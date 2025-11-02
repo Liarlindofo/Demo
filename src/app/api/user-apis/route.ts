@@ -4,7 +4,7 @@ import { stackServerApp } from '@/stack'
 import { syncStackAuthUser } from '@/lib/stack-auth-sync'
 
 // GET /api/user-apis - Obter todas as APIs do usuário
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Identificar usuário autenticado via Stack Auth e garantir sync no DB
     const stackUser = await stackServerApp.getUser({ or: 'return-null' })
@@ -98,7 +98,7 @@ export async function PUT(request: NextRequest) {
         profileImageUrl: stackUser.profileImageUrl,
         primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
       })
-    } catch (e) {
+    } catch (_e) {
       return NextResponse.json({ error: 'Falha ao sincronizar usuário' }, { status: 500 })
     }
 

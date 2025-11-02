@@ -147,7 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!cancelled && dbUserId) {
           setUserId(dbUserId);
         }
-      } catch (e) {
+      } catch (_e) {
         // silencioso: em modo anônimo/bypass pode não haver usuário
         console.warn('stack-sync indisponível ou usuário não autenticado');
       }
