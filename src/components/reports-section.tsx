@@ -68,8 +68,13 @@ export function ReportsSection() {
   const handleDateChange = (date: Date | undefined) => {
     setSelectedDate(date);
     if (date) {
-      addToast(`Data alterada para ${date.toLocaleDateString("pt-BR")}`, "info");
-      loadDailyData(date);
+      const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
+      if (saiposApis.length > 0) {
+        addToast(`Data alterada para ${date.toLocaleDateString("pt-BR")}`, "info");
+        loadDailyData(date);
+      } else {
+        addToast('Conecte uma API Saipos para visualizar relatórios diários', "info");
+      }
     }
   };
 
@@ -132,7 +137,10 @@ export function ReportsSection() {
   const loadDailyData = async (date: Date) => {
     try {
       const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
-      if (saiposApis.length === 0) throw new Error('Nenhuma API Saipos conectada');
+      if (saiposApis.length === 0) {
+        setDailyData(null);
+        return; // Silenciosamente retorna se não há APIs conectadas
+      }
       const targetApi = selectedStore?.apiId
         ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
@@ -143,7 +151,11 @@ export function ReportsSection() {
     } catch (error) {
       console.error("Erro ao carregar dados diários:", error);
       setDailyData(null);
-      setErrorMsg((prev) => prev || "Erro ao conectar à Saipos");
+      // Não mostrar erro se for apenas falta de APIs conectadas
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (!errorMsg.includes('Nenhuma API Saipos conectada')) {
+        setErrorMsg((prev) => prev || "Erro ao conectar à Saipos");
+      }
     }
   };
 
@@ -201,16 +213,26 @@ export function ReportsSection() {
     // Iniciar polling a cada 60s usando token da API
     const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
     const targetApi = saiposApis[0];
-    if (targetApi) {
+    if (targetApi && selectedStore) {
       realtimeService.startPolling(async () => {
-        const today = new Date().toISOString().split('T')[0];
-        const daily = await saiposHTTP.getDailyReport(today, targetApi.apiKey as string);
-        return {
-          storeId: selectedStore.id,
-          type: 'sales',
-          data: { totalSales: daily.totalSales },
-          timestamp: new Date().toISOString(),
-        } as RealtimeUpdate;
+        try {
+          const today = new Date().toISOString().split('T')[0];
+          const daily = await saiposHTTP.getDailyReport(today, targetApi.apiKey as string);
+          return {
+            storeId: selectedStore.id,
+            type: 'sales',
+            data: { totalSales: daily.totalSales },
+            timestamp: new Date().toISOString(),
+          } as RealtimeUpdate;
+        } catch (error) {
+          console.error('Erro no polling de dados diários:', error);
+          return {
+            storeId: selectedStore.id,
+            type: 'sales',
+            data: { totalSales: 0 },
+            timestamp: new Date().toISOString(),
+          } as RealtimeUpdate;
+        }
       }, 60000);
     }
 
