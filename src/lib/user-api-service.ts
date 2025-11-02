@@ -144,18 +144,32 @@ export class UserAPIService {
       console.log(`🔑 API Key: ${api.apiKey.substring(0, 12)}...`)
 
       // Teste REAL: tentar buscar lojas com o token
-      const client = new SaiposAPIService({ apiKey: api.apiKey, baseUrl: api.baseUrl || 'https://api.saipos.com' })
+      const client = new SaiposAPIService({ 
+        apiKey: api.apiKey, 
+        baseUrl: api.baseUrl || 'https://api.saipos.com.br/v1' 
+      })
       let status: 'connected' | 'error' = 'error'
+      let errorMessage: string | null = null
+      
       try {
         const ok = await client.testConnection()
         if (ok) {
           // opcional: verificar se retorna ao menos uma loja
-          await client.getStores().catch(() => {})
-          status = 'connected'
+          try {
+            await client.getStores().catch(() => {})
+            status = 'connected'
+          } catch {
+            // Se getStores falhar mas testConnection passou, ainda consideramos conectado
+            status = 'connected'
+          }
         }
-      } catch (e) {
-        console.error('Falha no teste real:', e)
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        console.error('Falha no teste real:', msg)
         status = 'error'
+        errorMessage = msg
+        // Re-throw para propagar mensagem de erro específica
+        throw new Error(msg)
       }
 
       // Atualizar status no banco

@@ -250,14 +250,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        addToast(`Teste concluído: ${data.api.status}`, data.api.status === 'connected' ? 'success' : 'error');
+        const status = data.api.status;
+        if (status === 'connected') {
+          addToast('✅ Conexão estabelecida com sucesso!', 'success');
+        } else {
+          addToast('❌ Falha na conexão. Verifique o token.', 'error');
+        }
         await loadUserAPIs(); // Recarregar lista
       } else {
-        addToast('Erro ao testar API', 'error');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error || 'Erro ao testar API';
+        addToast(errorMessage, 'error');
       }
     } catch (error) {
       console.error('Erro ao testar API:', error);
-      addToast('Erro ao testar API', 'error');
+      const message = error instanceof Error ? error.message : 'Erro ao testar API';
+      addToast(message, 'error');
     }
   }, [addToast, loadUserAPIs]);
 

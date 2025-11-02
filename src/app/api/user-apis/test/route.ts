@@ -16,11 +16,14 @@ export async function POST(request: NextRequest) {
 
     const api = await UserAPIService.testAndUpdateAPI(apiId)
     return NextResponse.json({ api })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Erro ao testar API:', error)
+    const message = error instanceof Error ? error.message : 'Erro interno do servidor'
+    // Se for erro de token inválido, retornar 401
+    const status = message.includes('Token inválido') || message.includes('401') || message.includes('403') ? 401 : 500
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
+      { error: message },
+      { status }
     )
   }
 }

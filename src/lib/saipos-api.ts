@@ -93,25 +93,56 @@ export class SaiposAPIService {
 
       console.log('🔗 Testando conexão real com Saipos...');
       
-      // Fazer chamada real para a API da Saipos
-      const response = await fetch(`${this.config.baseUrl}/test`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      // Testar usando o endpoint real de lojas (ou stores) que deve existir na API Saipos
+      // Se não existir /stores, tenta /reports/sales ou endpoint básico
+      const baseUrl = this.config.baseUrl || 'https://api.saipos.com.br/v1';
+      
+      // Tentar múltiplos endpoints possíveis
+      const endpointsToTry = ['/stores', '/reports/sales', '/stores/list'];
+      
+      for (const endpoint of endpointsToTry) {
+        try {
+          const response = await fetch(`${baseUrl}${endpoint}?limit=1`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${this.config.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            // Timeout de 10 segundos
+            signal: AbortSignal.timeout(10000),
+          });
 
-      if (response.ok) {
-        console.log('✅ Conexão com Saipos estabelecida!');
-        return true;
-      } else {
-        console.error('❌ Falha na conexão:', response.status, response.statusText);
-        return false;
+          if (response.ok || response.status === 200 || response.status === 201) {
+            console.log('✅ Conexão com Saipos estabelecida!');
+            return true;
+          }
+          
+          // Se retornar 401 ou 403, o token está inválido
+          if (response.status === 401 || response.status === 403) {
+            throw new Error('Token inválido ou sem permissão');
+          }
+          
+          // Se retornar 404, tentar próximo endpoint
+          if (response.status === 404) {
+            continue;
+          }
+        } catch (e) {
+          // Se o erro for sobre token inválido, propagar
+          if (e instanceof Error && e.message.includes('Token inválido')) {
+            throw e;
+          }
+          // Caso contrário, tentar próximo endpoint
+          continue;
+        }
       }
-    } catch (error) {
-      console.error('❌ Erro ao testar conexão com Saipos:', error);
+      
+      // Se nenhum endpoint funcionou, retornar false
+      console.error('❌ Nenhum endpoint da API Saipos respondeu');
       return false;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ Erro ao testar conexão com Saipos:', errorMessage);
+      throw error; // Propagar o erro para mostrar mensagem específica
     }
   }
 
