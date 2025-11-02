@@ -10,8 +10,9 @@
                     "db:init":  "tsx scripts/init-db.ts",
                     "db:generate":  "prisma generate",
                     "db:push":  "prisma db push",
+                    "db:push:force":  "prisma db push --accept-data-loss",
                     "db:migrate":  "prisma migrate dev",
-                    "vercel-build":  "npm run db:generate && npm run db:push && npm run build",
+                    "vercel-build":  "npm run db:generate && npm run db:push:force && npm run build",
                     "db:deploy":  "prisma migrate deploy"
                 },
     "dependencies":  {
