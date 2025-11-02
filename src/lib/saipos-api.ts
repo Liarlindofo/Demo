@@ -122,7 +122,7 @@ export class SaiposAPIService {
         // Erro de rede ou conexão
         const networkError = fetchError instanceof Error ? fetchError.message : String(fetchError);
         const errorName = fetchError instanceof Error ? fetchError.name : 'UnknownError';
-        const errorCause = fetchError instanceof Error && (fetchError as any).cause ? String((fetchError as any).cause) : '';
+        const errorCause = fetchError instanceof Error && 'cause' in fetchError ? String(fetchError.cause) : '';
         
         console.error('❌ Erro de rede ao conectar com Saipos:', {
           message: networkError,
