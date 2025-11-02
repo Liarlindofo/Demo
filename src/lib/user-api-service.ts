@@ -36,6 +36,14 @@ export class UserAPIService {
   // Criar nova API para usuário
   static async createAPI(data: CreateUserAPIRequest): Promise<UserAPIConfig> {
     try {
+      // Limitar a até 4 conexões Saipos por usuário
+      if (data.type === 'saipos') {
+        const count = await prisma.userAPI.count({ where: { userId: data.userId, type: 'saipos' } })
+        if (count >= 4) {
+          throw new Error('Limite de 4 conexões Saipos atingido')
+        }
+      }
+
       const api = await prisma.userAPI.create({
         data: {
           userId: data.userId,

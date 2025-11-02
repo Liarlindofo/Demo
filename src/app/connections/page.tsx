@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface LocalAPIForm {
   id?: string;
@@ -15,19 +17,34 @@ interface LocalAPIForm {
   apiKey: string;
   baseUrl?: string;
   avatar?: string;
+  status?: "connected" | "disconnected" | "error";
+  lastTest?: string | null;
 }
 
 export default function ConnectionsPage() {
   const { userId, connectedAPIs, loadUserAPIs, createUserAPI, updateUserAPI, deleteUserAPI, testUserAPI, addToast } = useApp();
   const [forms, setForms] = useState<LocalAPIForm[]>([]);
   const saiposAPIs = useMemo(() => connectedAPIs.filter(a => a.type === 'saipos'), [connectedAPIs]);
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const [popupName, setPopupName] = useState('Loja 1');
+  const [popupToken, setPopupToken] = useState('');
+  const [popupError, setPopupError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     loadUserAPIs();
   }, [loadUserAPIs]);
 
   useEffect(() => {
-    const mapped = saiposAPIs.map(api => ({ id: api.id, name: api.name, apiKey: api.apiKey || '', baseUrl: api.baseUrl || 'https://api.saipos.com.br/v1', avatar: `/avatars/store-1.png` }));
+    const mapped = saiposAPIs.map(api => ({
+      id: api.id,
+      name: api.name,
+      apiKey: api.apiKey || '',
+      baseUrl: api.baseUrl || 'https://api.saipos.com.br/v1',
+      avatar: `/avatars/store-1.png`,
+      status: api.status,
+      lastTest: api.lastTest || null,
+    }));
     setForms(mapped);
   }, [saiposAPIs]);
 
@@ -71,6 +88,63 @@ export default function ConnectionsPage() {
     await testUserAPI(f.id);
   };
 
+  // Fluxo robusto via pop-up (sem sair da tela)
+  const ensureUser = async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/auth/stack-sync', { method: 'POST' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const handlePopupSubmit = async () => {
+    setPopupError(null);
+    if (!popupName.trim() || !popupToken.trim()) {
+      setPopupError('Informe nome e token.');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const ok = await ensureUser();
+      if (!ok && !userId) {
+        setPopupError('Faça login para salvar sua API.');
+        return;
+      }
+
+      // Criar API diretamente na rota para obter o ID e já testar
+      const createRes = await fetch('/api/user-apis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: popupName.trim(), type: 'saipos', apiKey: popupToken.trim(), baseUrl: 'https://api.saipos.com.br/v1' })
+      });
+      if (!createRes.ok) {
+        const j = await createRes.json().catch(() => ({}));
+        throw new Error(j?.error || 'Falha ao salvar API');
+      }
+      const created = await createRes.json();
+      const apiId: string | undefined = created?.api?.id;
+      if (!apiId) throw new Error('Resposta inválida da criação da API');
+
+      // Testar imediatamente
+      const testRes = await fetch(`/api/user-apis/test?id=${apiId}`, { method: 'POST' });
+      if (!testRes.ok) {
+        const j = await testRes.json().catch(() => ({}));
+        throw new Error(j?.error || 'Falha ao testar API');
+      }
+
+      addToast('API conectada com sucesso!', 'success');
+      setIsPopupOpen(false);
+      setPopupToken('');
+      await loadUserAPIs();
+    } catch (e: any) {
+      console.error('Popup connect error:', e);
+      setPopupError(e?.message || 'Erro ao conectar API');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
       <div>
@@ -81,11 +155,49 @@ export default function ConnectionsPage() {
       <Card className="bg-[#141415] border-[#374151]">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-white">APIs conectadas</CardTitle>
-          {canAdd && (
-            <Button onClick={handleAdd} className="bg-[#001F05]">
-              Adicionar API
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {canAdd && (
+              <Button onClick={handleAdd} className="bg-[#0f0f10] border border-[#374151] text-white hover:bg-[#1f1f22]">
+                Adicionar linha
+              </Button>
+            )}
+            {canAdd && (
+              <Dialog open={isPopupOpen} onOpenChange={setIsPopupOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-[#001F05]">Conectar via Pop‑up</Button>
+                </DialogTrigger>
+                <DialogContent className="bg-[#141415] border-[#374151] text-white">
+                  <DialogHeader>
+                    <DialogTitle>Conectar PDV Saipos</DialogTitle>
+                    <DialogDescription className="text-gray-400">
+                      Cole seu Bearer Token para conectar imediatamente sem sair desta tela.
+                    </DialogDescription>
+                  </DialogHeader>
+                  {popupError && (
+                    <Alert variant="destructive">
+                      <AlertTitle>Erro</AlertTitle>
+                      <AlertDescription>{popupError}</AlertDescription>
+                    </Alert>
+                  )}
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="popup-name" className="text-gray-300">Nome</Label>
+                      <Input id="popup-name" value={popupName} onChange={e => setPopupName(e.target.value)} className="bg-[#0f0f10] border-[#374151] text-white" />
+                    </div>
+                    <div>
+                      <Label htmlFor="popup-token" className="text-gray-300">Token Bearer</Label>
+                      <Input id="popup-token" type="password" value={popupToken} onChange={e => setPopupToken(e.target.value)} className="bg-[#0f0f10] border-[#374151] text-white" />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handlePopupSubmit} disabled={isSubmitting} className="bg-[#001F05]">
+                      {isSubmitting ? 'Conectando...' : 'Conectar agora'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {forms.length === 0 && (
@@ -98,6 +210,18 @@ export default function ConnectionsPage() {
                   <AvatarImage src={f.avatar || `/avatars/store-1.png`} />
                   <AvatarFallback className="bg-[#001F05] text-white">S</AvatarFallback>
                 </Avatar>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2.5 h-2.5 rounded-full ${f.status === 'connected' ? 'bg-green-500' : f.status === 'error' ? 'bg-red-500' : 'bg-gray-500'}`} />
+                  <span className="text-xs text-gray-400">
+                    {f.status === 'connected' ? 'Conectada' : f.status === 'error' ? 'Erro' : 'Desconectada'}
+                    {f.lastTest && (
+                      <>
+                        {" • Último teste: "}
+                        {new Date(f.lastTest).toLocaleString('pt-BR')}
+                      </>
+                    )}
+                  </span>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
                   <div>
                     <Label htmlFor={`name-${idx}`} className="text-gray-300">Nome</Label>

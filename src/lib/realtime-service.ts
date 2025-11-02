@@ -236,3 +236,9 @@ export const realtimeService = new RealtimeService({
 });
 
 export default RealtimeService;
+
+// Wrapper simples conforme especificação: atualiza a cada 60s
+export function startRealtimeSync(callback: () => void) {
+  if (typeof window === 'undefined') return;
+  window.setInterval(callback, 60000);
+}
