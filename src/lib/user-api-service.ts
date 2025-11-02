@@ -162,12 +162,23 @@ export class UserAPIService {
             // Se getStores falhar mas testConnection passou, ainda consideramos conectado
             status = 'connected'
           }
+        } else {
+          // Se testConnection retornou false mas não lançou erro, é uma falha silenciosa
+          status = 'error'
+          errorMessage = 'Falha ao conectar com a API Saipos. Verifique o token e a URL.'
+          throw new Error(errorMessage)
         }
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
         console.error('Falha no teste real:', msg)
         status = 'error'
         errorMessage = msg
+        
+        // Se o erro for "fetch failed", tentar fornecer mais contexto
+        if (msg.includes('fetch failed') || msg.includes('Failed to fetch')) {
+          throw new Error(`Não foi possível conectar com a API Saipos. Possíveis causas:\n1. URL incorreta: ${api.baseUrl}\n2. Token inválido\n3. API não acessível do servidor\n4. Problema de rede/firewall`)
+        }
+        
         // Re-throw para propagar mensagem de erro específica
         throw new Error(msg)
       }

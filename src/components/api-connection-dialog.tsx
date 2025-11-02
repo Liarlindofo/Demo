@@ -55,7 +55,15 @@ export function APIConnectionDialog() {
       setApiKey('');
     } catch (e: unknown) {
       const message = (e as Error)?.message || 'Erro ao conectar API';
-      setErrorMsg(message);
+      console.error('Erro ao conectar API no popup:', e);
+      
+      // Mensagem mais amigável para o usuário
+      let userMessage = message;
+      if (message.includes('fetch failed') || message.includes('Failed to fetch')) {
+        userMessage = 'Não foi possível conectar com a API Saipos. Verifique o token e tente novamente.';
+      }
+      
+      setErrorMsg(userMessage);
     } finally {
       setIsSubmitting(false);
     }

@@ -103,21 +103,60 @@ export class SaiposAPIService {
       // Usar o mesmo endpoint que funciona no saiposHTTP
       let response: Response;
       try {
+        // Adicionar timeout manual para evitar travamentos
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos
+        
         response = await fetch(`${baseUrl}/stores`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${cleanToken}`,
             'Content-Type': 'application/json',
+            'User-Agent': 'Drin-Platform/1.0',
           },
+          signal: controller.signal,
         });
+        
+        clearTimeout(timeoutId);
       } catch (fetchError) {
         // Erro de rede ou conexão
         const networkError = fetchError instanceof Error ? fetchError.message : String(fetchError);
-        console.error('❌ Erro de rede ao conectar com Saipos:', networkError);
+        const errorName = fetchError instanceof Error ? fetchError.name : 'UnknownError';
+        const errorCause = fetchError instanceof Error && (fetchError as any).cause ? String((fetchError as any).cause) : '';
         
-        // Verificar se é erro de DNS ou conexão
-        if (networkError.includes('ECONNREFUSED') || networkError.includes('ENOTFOUND') || networkError.includes('ETIMEDOUT')) {
-          throw new Error(`Não foi possível conectar com a API Saipos. Verifique a URL base: ${baseUrl}`);
+        console.error('❌ Erro de rede ao conectar com Saipos:', {
+          message: networkError,
+          name: errorName,
+          cause: errorCause,
+          url: `${baseUrl}/stores`
+        });
+        
+        // Verificar se foi abortado por timeout
+        if (errorName === 'AbortError' || networkError.includes('aborted')) {
+          throw new Error(`Timeout ao conectar com a API Saipos (15s). Verifique se a URL está correta: ${baseUrl}`);
+        }
+        
+        // Mensagens mais específicas baseadas no tipo de erro
+        if (networkError.includes('fetch failed') || networkError.includes('Failed to fetch')) {
+          // Tentar obter mais informações do erro
+          const detailedMessage = errorCause || networkError;
+          throw new Error(`Não foi possível conectar com a API Saipos. Verifique:\n1. URL: ${baseUrl}\n2. Token válido\n3. Conexão com internet\n\nDetalhes: ${detailedMessage}`);
+        }
+        
+        if (networkError.includes('ECONNREFUSED')) {
+          throw new Error(`Conexão recusada. Verifique se a URL base está correta: ${baseUrl}`);
+        }
+        
+        if (networkError.includes('ENOTFOUND') || networkError.includes('getaddrinfo')) {
+          throw new Error(`URL não encontrada. Verifique se a URL base está correta: ${baseUrl}`);
+        }
+        
+        if (networkError.includes('ETIMEDOUT') || networkError.includes('timeout')) {
+          throw new Error(`Timeout ao conectar com a API Saipos. Tente novamente mais tarde.`);
+        }
+        
+        if (networkError.includes('SSL') || networkError.includes('TLS') || networkError.includes('certificate')) {
+          throw new Error(`Erro de certificado SSL. Verifique se a URL usa HTTPS: ${baseUrl}`);
         }
         
         throw new Error(`Erro de conexão: ${networkError}`);
