@@ -550,16 +550,15 @@ export const saiposAPI = new SaiposAPIService({
 export default SaiposAPIService;
 
 // ===== Novo wrapper funcional conforme especificação =====
-const BASE_URL = 'https://data.saipos.io/v1';
 
 export const saiposHTTP = {
-  async getStores(token: string) {
+  async getStores() {
     // Nota: endpoint de lojas pode não existir na API de dados
     // Retornar array vazio se não houver endpoint específico
     return [];
   },
 
-  async getSalesData(startDate: string, endDate: string, token: string, apiId?: string) {
+  async getSalesData(startDate: string, endDate: string, _token: string, apiId?: string) {
     // Usar rota API do Next.js como proxy para evitar CORS
     const params = new URLSearchParams({
       startDate,
@@ -582,7 +581,7 @@ export const saiposHTTP = {
     return res.json();
   },
 
-  async getDailyReport(date: string, token: string, apiId?: string) {
+  async getDailyReport(date: string, _token: string, apiId?: string) {
     // Usar rota API do Next.js como proxy para evitar CORS
     const params = new URLSearchParams({
       date,

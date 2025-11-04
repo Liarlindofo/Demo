@@ -98,7 +98,7 @@ export async function PUT(request: NextRequest) {
         profileImageUrl: stackUser.profileImageUrl,
         primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
       })
-    } catch (_e) {
+    } catch {
       return NextResponse.json({ error: 'Falha ao sincronizar usuário' }, { status: 500 })
     }
 

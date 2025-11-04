@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
       firstItem: Array.isArray(data) && data.length > 0 ? data[0] : null,
       firstItemKeys: Array.isArray(data) && data.length > 0 ? Object.keys(data[0]) : [],
       hasDataKey: data && typeof data === 'object' && 'data' in data,
-      dataKeyType: data && typeof data === 'object' && 'data' in data ? (Array.isArray((data as any).data) ? 'array' : typeof (data as any).data) : null,
+      dataKeyType: data && typeof data === 'object' && 'data' in data ? (Array.isArray((data as Record<string, unknown>).data) ? 'array' : typeof (data as Record<string, unknown>).data) : null,
     })
   } catch (error: unknown) {
     console.error('Erro ao fazer debug:', error)

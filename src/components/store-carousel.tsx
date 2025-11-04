@@ -5,7 +5,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { useApp } from "@/contexts/app-context";
-import { SaiposAPIService, SaiposStore } from "@/lib/saipos-api";
+import { SaiposStore } from "@/lib/saipos-api";
 
 interface Store {
   id: string;
@@ -46,8 +46,8 @@ export function StoreCarousel() {
           return;
         }
 
-        // Como não há endpoint de lojas na API de dados, criar lojas baseadas nas APIs conectadas
-        const storesFromAPIs: SaiposStore[] = connectedSaiposAPIs.map((apiConfig, index) => ({
+          // Como não há endpoint de lojas na API de dados, criar lojas baseadas nas APIs conectadas
+          const storesFromAPIs: SaiposStore[] = connectedSaiposAPIs.map((apiConfig) => ({
           id: apiConfig.id,
           name: apiConfig.name,
           address: '',
