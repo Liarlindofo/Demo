@@ -98,19 +98,27 @@ export class SaiposAPIService {
       const cleanToken = token.replace(/^Bearer\s+/i, '');
       
       console.log('🔗 Testando conexão real com Saipos...');
-      console.log(`📍 URL: ${baseUrl}/search`);
+      console.log(`📍 URL: ${baseUrl}/search_sales`);
       
-      // Usar o endpoint /search para testar a conexão
+      // Usar o endpoint /search_sales para testar a conexão
+      // Criar data de hoje para o teste
+      const today = new Date();
+      const todayISO = today.toISOString().split('T')[0];
+      
       let response: Response;
       try {
         // Adicionar timeout manual para evitar travamentos
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos
         
-        response = await fetch(`${baseUrl}/search`, {
+        // Usar parâmetros mínimos para testar a conexão
+        const testUrl = `${baseUrl}/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${todayISO}T00:00:00&p_filter_date_end=${todayISO}T23:59:59&p_limit=1&p_offset=0`;
+        
+        response = await fetch(testUrl, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${cleanToken}`,
+            'accept': 'application/json',
             'Content-Type': 'application/json',
             'User-Agent': 'Drin-Platform/1.0',
           },
@@ -128,7 +136,7 @@ export class SaiposAPIService {
           message: networkError,
           name: errorName,
           cause: errorCause,
-          url: `${baseUrl}/search`
+          url: `${baseUrl}/search_sales`
         });
         
         // Verificar se foi abortado por timeout
