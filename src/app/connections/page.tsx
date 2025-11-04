@@ -24,7 +24,8 @@ import {
   Sparkles,
   Shield,
   Clock,
-  Info
+  Info,
+  Lock
 } from 'lucide-react';
 
 interface LocalAPIForm {
@@ -57,7 +58,7 @@ export default function ConnectionsPage() {
       id: api.id,
       name: api.name,
       apiKey: api.apiKey || '',
-      baseUrl: api.baseUrl || 'https://data.saipos.io/v1',
+      baseUrl: 'https://data.saipos.io/v1', // Sempre usar URL fixa
       avatar: `/avatars/store-1.png`,
       status: api.status,
       lastTest: api.lastTest || null,
@@ -78,10 +79,12 @@ export default function ConnectionsPage() {
       addToast('Nome e token são obrigatórios', 'error');
       return;
     }
+    // Sempre usar a URL fixa da Saipos
+    const fixedBaseUrl = 'https://data.saipos.io/v1';
     if (f.id) {
-      await updateUserAPI(f.id, { name: f.name, apiKey: f.apiKey, baseUrl: f.baseUrl });
+      await updateUserAPI(f.id, { name: f.name, apiKey: f.apiKey, baseUrl: fixedBaseUrl });
     } else {
-      await createUserAPI({ name: f.name, type: 'saipos', apiKey: f.apiKey, baseUrl: f.baseUrl });
+      await createUserAPI({ name: f.name, type: 'saipos', apiKey: f.apiKey, baseUrl: fixedBaseUrl });
     }
     await loadUserAPIs();
   };
@@ -347,20 +350,19 @@ export default function ConnectionsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor={`base-${idx}`} className="text-gray-300 text-sm font-medium flex items-center gap-2">
-                        <Link2 className="h-3 w-3" />
+                      <Label className="text-gray-300 text-sm font-medium flex items-center gap-2">
+                        <Lock className="h-3 w-3 text-gray-500" />
                         Base URL
                       </Label>
-                      <Input 
-                        id={`base-${idx}`} 
-                        value={f.baseUrl || ''} 
-                        onChange={e => {
-                          const v = e.target.value; 
-                          setForms(prev => prev.map((x,i)=> i===idx?{...x,baseUrl:v}:x));
-                        }} 
-                        className="bg-[#141415] border-[#374151] text-white focus:border-[#001F05] focus:ring-2 focus:ring-[#001F05]/20 transition-all font-mono text-sm" 
-                        placeholder="https://data.saipos.io/v1"
-                      />
+                      <div className="relative">
+                        <Input 
+                          value="https://data.saipos.io/v1" 
+                          disabled
+                          className="bg-[#0f0f10] border-[#374151] text-gray-400 font-mono text-sm cursor-not-allowed opacity-60"
+                        />
+                        <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">URL fixa da API Saipos (não editável)</p>
                     </div>
                     <div className="md:col-span-2 space-y-2">
                       <Label htmlFor={`token-${idx}`} className="text-gray-300 text-sm font-medium flex items-center gap-2">
