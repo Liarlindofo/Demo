@@ -87,6 +87,17 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
+    
+    // Log detalhado do que foi retornado da API
+    console.log('📡 Resposta da API Saipos (daily):', {
+      status: response.status,
+      dataType: Array.isArray(data) ? 'array' : typeof data,
+      dataLength: Array.isArray(data) ? data.length : 'N/A',
+      dataKeys: data && typeof data === 'object' ? Object.keys(data) : [],
+      firstItem: Array.isArray(data) && data.length > 0 ? data[0] : null,
+      rawDataPreview: JSON.stringify(data).substring(0, 500),
+    })
+    
     return NextResponse.json(data)
   } catch (error: unknown) {
     console.error('Erro ao buscar relatório diário:', error)

@@ -765,15 +765,35 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
     console.log('🔍 DEBUG normalizeDailyResponse - É array?', Array.isArray(apiJson));
     console.log('🔍 DEBUG normalizeDailyResponse - Dados recebidos:', JSON.stringify(apiJson).substring(0, 500));
     
+    // Verificar se é null ou undefined
+    if (apiJson === null || apiJson === undefined) {
+      console.log('⚠️ API retornou null/undefined - sem vendas para o período');
+      const today = new Date().toISOString().split('T')[0];
+      return {
+        date: today,
+        totalSales: 0,
+        totalOrders: 0,
+        averageTicket: 0,
+        uniqueCustomers: 0,
+        totalRevenue: 0,
+        ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
+        topProducts: [],
+      };
+    }
+    
     // A API retorna um array de vendas
     const root = (apiJson ?? {}) as JsonObject;
     let salesArray: JsonObject[] = [];
     
     if (Array.isArray(apiJson)) {
       salesArray = apiJson as JsonObject[];
-    } else {
-      const candidate = getProp(root, 'data') ?? getProp(root, 'results') ?? getProp(root, 'sales');
-      salesArray = asArray(candidate);
+    } else if (typeof apiJson === 'object') {
+      // Tentar encontrar o array em diferentes locais possíveis
+      const candidate = getProp(root, 'data') ?? getProp(root, 'results') ?? getProp(root, 'sales') ?? getProp(root, 'items');
+      if (candidate) {
+        salesArray = asArray(candidate);
+      }
+      console.log('🔍 DEBUG - Chaves disponíveis no objeto:', Object.keys(root));
     }
 
     console.log('🔍 DEBUG - Total de vendas encontradas:', salesArray.length);
