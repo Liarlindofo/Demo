@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 export default function TestAPIPage() {
   const [startDate, setStartDate] = useState('2025-11-01');
   const [endDate, setEndDate] = useState('2025-11-04');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<unknown>(null);
   const [loading, setLoading] = useState(false);
 
   const testAPI = async () => {
