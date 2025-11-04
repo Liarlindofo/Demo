@@ -113,7 +113,8 @@ export function ReportsSection() {
       const raw = await saiposHTTP.getSalesData(
         startDate.toISOString().split("T")[0],
         endDate.toISOString().split("T")[0],
-        targetApi.apiKey as string
+        targetApi.apiKey as string,
+        targetApi.id
       );
 
       const normalized = normalizeSalesResponse(raw);
@@ -145,7 +146,7 @@ export function ReportsSection() {
         ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
 
-      const raw = await saiposHTTP.getDailyReport(date.toISOString().split("T")[0], targetApi.apiKey as string);
+      const raw = await saiposHTTP.getDailyReport(date.toISOString().split("T")[0], targetApi.apiKey as string, targetApi.id);
       const normalized = normalizeDailyResponse(raw);
       setDailyData(normalized);
     } catch (error) {
@@ -219,7 +220,7 @@ export function ReportsSection() {
       realtimeService.startPolling(async () => {
         try {
           const today = new Date().toISOString().split('T')[0];
-          const raw = await saiposHTTP.getDailyReport(today, targetApi.apiKey as string);
+          const raw = await saiposHTTP.getDailyReport(today, targetApi.apiKey as string, targetApi.id);
           const daily = normalizeDailyResponse(raw);
           return {
             storeId: selectedStore.id,

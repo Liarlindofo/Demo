@@ -559,35 +559,48 @@ export const saiposHTTP = {
     return [];
   },
 
-  async getSalesData(startDate: string, endDate: string, token: string) {
-    const startDateTime = `${startDate}T00:00:00`;
-    const endDateTime = `${endDate}T23:59:59`;
-    const url = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(startDateTime)}&p_filter_date_end=${encodeURIComponent(endDateTime)}&p_limit=300&p_offset=0`;
+  async getSalesData(startDate: string, endDate: string, token: string, apiId?: string) {
+    // Usar rota API do Next.js como proxy para evitar CORS
+    const params = new URLSearchParams({
+      startDate,
+      endDate,
+    });
+    if (apiId) {
+      params.append('apiId', apiId);
+    }
     
-    const res = await fetch(url, {
+    const res = await fetch(`/api/saipos/sales?${params.toString()}`, {
       headers: { 
-        Authorization: `Bearer ${token}`,
-        accept: 'application/json'
+        'Content-Type': 'application/json'
       },
       cache: 'no-store',
     });
-    if (!res.ok) throw new Error('Erro ao buscar dados de vendas');
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Erro ao buscar dados de vendas');
+    }
     return res.json();
   },
 
-  async getDailyReport(date: string, token: string) {
-    const startDateTime = `${date}T00:00:00`;
-    const endDateTime = `${date}T23:59:59`;
-    const url = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(startDateTime)}&p_filter_date_end=${encodeURIComponent(endDateTime)}&p_limit=300&p_offset=0`;
+  async getDailyReport(date: string, token: string, apiId?: string) {
+    // Usar rota API do Next.js como proxy para evitar CORS
+    const params = new URLSearchParams({
+      date,
+    });
+    if (apiId) {
+      params.append('apiId', apiId);
+    }
     
-    const res = await fetch(url, {
+    const res = await fetch(`/api/saipos/daily?${params.toString()}`, {
       headers: { 
-        Authorization: `Bearer ${token}`,
-        accept: 'application/json'
+        'Content-Type': 'application/json'
       },
       cache: 'no-store',
     });
-    if (!res.ok) throw new Error('Erro ao buscar relatório diário');
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Erro ao buscar relatório diário');
+    }
     return res.json();
   },
 };
