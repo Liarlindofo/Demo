@@ -74,7 +74,7 @@ export default function TestAPIPage() {
             </Button>
           </div>
 
-          {result && (
+          {result !== null && (
             <div className="mt-4">
               <h3 className="text-white font-bold mb-2">Resultado:</h3>
               <pre className="bg-[#141415] p-4 rounded text-xs text-gray-300 overflow-auto max-h-[600px]">
