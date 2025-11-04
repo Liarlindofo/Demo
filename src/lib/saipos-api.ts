@@ -688,41 +688,59 @@ export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
 
     // Converter cada grupo de vendas do dia em SaiposSalesData
     return Array.from(salesByDate.entries()).map(([date, sales]) => {
-      // Calcular totais por tipo de venda
+      // Calcular totais por tipo de venda (id_sale_type)
+      // 1=Delivery, 2=Retirada, 3=Salão, 4=Ficha
       const deliverySales = sales.filter(s => toNumberVal(s.id_sale_type) === 1);
       const counterSales = sales.filter(s => toNumberVal(s.id_sale_type) === 2);
       const hallSales = sales.filter(s => toNumberVal(s.id_sale_type) === 3);
       const ticketSales = sales.filter(s => toNumberVal(s.id_sale_type) === 4);
 
-      // Calcular valores totais
+      // Calcular valores totais usando total_sale_value (já inclui descontos e acréscimos)
       const totalRevenue = sales.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0);
       const totalOrders = sales.length;
       const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-      // Extrair clientes únicos
-      const uniqueCustomers = new Set(
-        sales
-          .map(s => toStringVal(getProp(s, 'customer') ? (getProp(s, 'customer') as JsonObject).id_customer : null))
-          .filter(id => id)
-      ).size;
+      // Extrair clientes únicos (contar apenas id_customer únicos)
+      const customerIds = new Set<string>();
+      sales.forEach(s => {
+        const customer = getProp(s, 'customer');
+        if (customer && typeof customer === 'object') {
+          const customerId = toStringVal((customer as JsonObject).id_customer);
+          if (customerId) {
+            customerIds.add(customerId);
+          }
+        }
+      });
+      const uniqueCustomers = customerIds.size;
 
-      // Extrair produtos mais vendidos dos itens
+      // Extrair produtos mais vendidos dos itens (incluindo complementos)
       const productMap = new Map<string, { quantity: number; revenue: number; name: string }>();
       
       sales.forEach((sale: JsonObject) => {
         const items = asArray(getProp(sale, 'items'));
         items.forEach((item: JsonObject) => {
+          // Ignorar itens deletados
+          if (item.deleted === true) return;
+          
           const itemName = toStringVal(item.desc_sale_item || item.desc_store_item || 'Item sem nome');
           const quantity = toNumberVal(item.quantity);
           const unitPrice = toNumberVal(item.unit_price);
-          const revenue = quantity * unitPrice;
+          
+          // Adicionar preço de complementos (choices)
+          let additionalPrice = 0;
+          const choices = asArray(getProp(item, 'choices'));
+          choices.forEach((choice: JsonObject) => {
+            additionalPrice += toNumberVal(choice.aditional_price);
+          });
+          
+          const itemTotal = (unitPrice + additionalPrice) * quantity;
 
           if (productMap.has(itemName)) {
             const existing = productMap.get(itemName)!;
             existing.quantity += quantity;
-            existing.revenue += revenue;
+            existing.revenue += itemTotal;
           } else {
-            productMap.set(itemName, { quantity, revenue, name: itemName });
+            productMap.set(itemName, { quantity, revenue: itemTotal, name: itemName });
           }
         });
       });
@@ -823,13 +841,14 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
     console.log('🔍 DEBUG - total_sale_value:', firstSale.total_sale_value);
     console.log('🔍 DEBUG - id_sale_type:', firstSale.id_sale_type);
 
-    // Calcular totais por tipo de venda
+    // Calcular totais por tipo de venda (id_sale_type)
+    // 1=Delivery, 2=Retirada, 3=Salão, 4=Ficha
     const deliverySales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 1);
     const counterSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 2);
     const hallSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 3);
     const ticketSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 4);
 
-    // Calcular valores totais
+    // Calcular valores totais usando total_sale_value (já inclui descontos e acréscimos)
     const totalRevenue = salesArray.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0);
     const totalOrders = salesArray.length;
     const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
@@ -838,38 +857,49 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
     console.log('🔍 DEBUG - Pedidos:', totalOrders);
     console.log('🔍 DEBUG - Ticket médio:', averageTicket);
 
-    // Extrair clientes únicos
-    const uniqueCustomers = new Set(
-      salesArray
-        .map(s => {
-          const customer = getProp(s, 'customer');
-          if (customer && typeof customer === 'object') {
-            return toStringVal((customer as JsonObject).id_customer);
-          }
-          return null;
-        })
-        .filter(id => id)
-    ).size;
+    // Extrair clientes únicos (contar apenas id_customer únicos)
+    const customerIds = new Set<string>();
+    salesArray.forEach(s => {
+      const customer = getProp(s, 'customer');
+      if (customer && typeof customer === 'object') {
+        const customerId = toStringVal((customer as JsonObject).id_customer);
+        if (customerId) {
+          customerIds.add(customerId);
+        }
+      }
+    });
+    const uniqueCustomers = customerIds.size;
 
     console.log('🔍 DEBUG - Clientes únicos:', uniqueCustomers);
 
-    // Extrair produtos mais vendidos dos itens
+    // Extrair produtos mais vendidos dos itens (incluindo complementos)
     const productMap = new Map<string, { quantity: number; revenue: number; name: string }>();
     
     salesArray.forEach((sale: JsonObject) => {
       const items = asArray(getProp(sale, 'items'));
       items.forEach((item: JsonObject) => {
+        // Ignorar itens deletados
+        if (item.deleted === true) return;
+        
         const itemName = toStringVal(item.desc_sale_item || item.desc_store_item || 'Item sem nome');
         const quantity = toNumberVal(item.quantity);
         const unitPrice = toNumberVal(item.unit_price);
-        const revenue = quantity * unitPrice;
+        
+        // Adicionar preço de complementos (choices)
+        let additionalPrice = 0;
+        const choices = asArray(getProp(item, 'choices'));
+        choices.forEach((choice: JsonObject) => {
+          additionalPrice += toNumberVal(choice.aditional_price);
+        });
+        
+        const itemTotal = (unitPrice + additionalPrice) * quantity;
 
         if (productMap.has(itemName)) {
           const existing = productMap.get(itemName)!;
           existing.quantity += quantity;
-          existing.revenue += revenue;
+          existing.revenue += itemTotal;
         } else {
-          productMap.set(itemName, { quantity, revenue, name: itemName });
+          productMap.set(itemName, { quantity, revenue: itemTotal, name: itemName });
         }
       });
     });
