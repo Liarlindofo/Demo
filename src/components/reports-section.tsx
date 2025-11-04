@@ -139,20 +139,40 @@ export function ReportsSection() {
     try {
       const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
       if (saiposApis.length === 0) {
+        console.log('⚠️ Nenhuma API Saipos conectada para carregar dados diários');
         setDailyData(null);
-        return; // Silenciosamente retorna se não há APIs conectadas
+        return;
       }
       const targetApi = selectedStore?.apiId
         ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
 
-      const raw = await saiposHTTP.getDailyReport(date.toISOString().split("T")[0], targetApi.apiKey as string, targetApi.id);
+      const dateStr = date.toISOString().split("T")[0];
+      console.log('📅 Buscando dados diários para:', dateStr, 'API:', targetApi.name);
+      
+      const raw = await saiposHTTP.getDailyReport(dateStr, targetApi.apiKey as string, targetApi.id);
+      console.log('📦 Dados brutos recebidos (daily):', raw);
+      
       const normalized = normalizeDailyResponse(raw);
+      console.log('✅ Dados normalizados (daily):', normalized);
+      
       setDailyData(normalized);
+      
+      // Se retornou dados válidos, atualizar o dashboard
+      if (normalized && normalized.totalOrders > 0) {
+        console.log('📊 Atualizando dashboard com dados:', normalized);
+        updateDashboardData({
+          totalSales: normalized.totalSales,
+          totalOrders: normalized.totalOrders,
+          averageTicket: normalized.averageTicket,
+          uniqueCustomers: normalized.uniqueCustomers,
+        });
+      } else {
+        console.log('⚠️ Nenhuma venda encontrada para o dia:', dateStr);
+      }
     } catch (error) {
-      console.error("Erro ao carregar dados diários:", error);
+      console.error("❌ Erro ao carregar dados diários:", error);
       setDailyData(null);
-      // Não mostrar erro se for apenas falta de APIs conectadas
       const errorMsg = error instanceof Error ? error.message : String(error);
       if (!errorMsg.includes('Nenhuma API Saipos conectada')) {
         setErrorMsg((prev) => prev || "Erro ao conectar à Saipos");
