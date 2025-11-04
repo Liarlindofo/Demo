@@ -761,6 +761,11 @@ export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
 
 export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
   try {
+    // DEBUG: Log da estrutura recebida
+    console.log('🔍 DEBUG normalizeDailyResponse - Tipo de dados recebidos:', typeof apiJson);
+    console.log('🔍 DEBUG normalizeDailyResponse - É array?', Array.isArray(apiJson));
+    console.log('🔍 DEBUG normalizeDailyResponse - Dados recebidos:', JSON.stringify(apiJson).substring(0, 500));
+    
     // A API retorna um array de vendas
     const root = (apiJson ?? {}) as JsonObject;
     let salesArray: JsonObject[] = [];
@@ -772,8 +777,11 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
       salesArray = asArray(candidate);
     }
 
+    console.log('🔍 DEBUG - Total de vendas encontradas:', salesArray.length);
+
     if (salesArray.length === 0) {
       const today = new Date().toISOString().split('T')[0];
+      console.log('⚠️ Nenhuma venda encontrada para processar');
       return {
         date: today,
         totalSales: 0,
@@ -791,6 +799,11 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
     const shiftDate = toStringVal(firstSale.shift_date ?? firstSale.created_at ?? new Date().toISOString());
     const dateOnly = shiftDate.split('T')[0];
 
+    console.log('🔍 DEBUG - Primeira venda:', JSON.stringify(firstSale).substring(0, 300));
+    console.log('🔍 DEBUG - Campos disponíveis na venda:', Object.keys(firstSale));
+    console.log('🔍 DEBUG - total_sale_value:', firstSale.total_sale_value);
+    console.log('🔍 DEBUG - id_sale_type:', firstSale.id_sale_type);
+
     // Calcular totais por tipo de venda
     const deliverySales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 1);
     const counterSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 2);
@@ -802,12 +815,24 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
     const totalOrders = salesArray.length;
     const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
+    console.log('🔍 DEBUG - Total calculado:', totalRevenue);
+    console.log('🔍 DEBUG - Pedidos:', totalOrders);
+    console.log('🔍 DEBUG - Ticket médio:', averageTicket);
+
     // Extrair clientes únicos
     const uniqueCustomers = new Set(
       salesArray
-        .map(s => toStringVal(getProp(s, 'customer') ? (getProp(s, 'customer') as JsonObject).id_customer : null))
+        .map(s => {
+          const customer = getProp(s, 'customer');
+          if (customer && typeof customer === 'object') {
+            return toStringVal((customer as JsonObject).id_customer);
+          }
+          return null;
+        })
         .filter(id => id)
     ).size;
+
+    console.log('🔍 DEBUG - Clientes únicos:', uniqueCustomers);
 
     // Extrair produtos mais vendidos dos itens
     const productMap = new Map<string, { quantity: number; revenue: number; name: string }>();
@@ -835,7 +860,9 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
       .slice(0, 10)
       .map(p => ({ name: p.name, quantity: p.quantity, revenue: p.revenue }));
 
-    return {
+    console.log('🔍 DEBUG - Top produtos:', topProducts.slice(0, 3));
+
+    const result = {
       date: dateOnly,
       totalSales: totalRevenue,
       totalOrders: totalOrders,
@@ -854,6 +881,10 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
       },
       topProducts: topProducts,
     };
+
+    console.log('✅ DEBUG - Resultado final:', result);
+
+    return result;
   } catch (error) {
     console.error('Erro ao normalizar resposta diária:', error);
     const today = new Date().toISOString().split('T')[0];
