@@ -52,7 +52,7 @@ export function StoreCarousel() {
           console.log(`🔗 Usando API: ${apiConfig.name}`);
           const userSaiposAPI = new SaiposAPIService({
             apiKey: apiConfig.apiKey!,
-            baseUrl: apiConfig.baseUrl || 'https://api.saipos.com.br/v1'
+            baseUrl: apiConfig.baseUrl || 'https://data.saipos.io/v1'
           });
           const stores = await userSaiposAPI.getStores();
           // Anotar apiId de origem

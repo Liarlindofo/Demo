@@ -91,23 +91,23 @@ export class SaiposAPIService {
         throw new Error('API Key não configurada');
       }
 
-      const baseUrl = this.config.baseUrl || 'https://api.saipos.com.br/v1';
+      const baseUrl = this.config.baseUrl || 'https://data.saipos.io/v1';
       const token = this.config.apiKey.trim();
       
       // Remover "Bearer " se o usuário colou com o prefixo
       const cleanToken = token.replace(/^Bearer\s+/i, '');
       
       console.log('🔗 Testando conexão real com Saipos...');
-      console.log(`📍 URL: ${baseUrl}/stores`);
+      console.log(`📍 URL: ${baseUrl}/search`);
       
-      // Usar o mesmo endpoint que funciona no saiposHTTP
+      // Usar o endpoint /search para testar a conexão
       let response: Response;
       try {
         // Adicionar timeout manual para evitar travamentos
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos
         
-        response = await fetch(`${baseUrl}/stores`, {
+        response = await fetch(`${baseUrl}/search`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${cleanToken}`,
@@ -128,7 +128,7 @@ export class SaiposAPIService {
           message: networkError,
           name: errorName,
           cause: errorCause,
-          url: `${baseUrl}/stores`
+          url: `${baseUrl}/search`
         });
         
         // Verificar se foi abortado por timeout
@@ -521,13 +521,13 @@ export class SaiposAPIService {
 // Instância padrão do serviço (você pode configurar com suas credenciais)
 export const saiposAPI = new SaiposAPIService({
   apiKey: process.env.NEXT_PUBLIC_SAIPOS_API_KEY || '',
-  baseUrl: process.env.NEXT_PUBLIC_SAIPOS_BASE_URL || 'https://api.saipos.com.br/v1',
+  baseUrl: process.env.NEXT_PUBLIC_SAIPOS_BASE_URL || 'https://data.saipos.io/v1',
 });
 
 export default SaiposAPIService;
 
 // ===== Novo wrapper funcional conforme especificação =====
-const BASE_URL = 'https://api.saipos.com.br/v1';
+const BASE_URL = 'https://data.saipos.io/v1';
 
 export const saiposHTTP = {
   async getStores(token: string) {

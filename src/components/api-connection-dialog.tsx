@@ -38,7 +38,7 @@ export function APIConnectionDialog() {
       const createRes = await fetch('/api/user-apis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), type: 'saipos', apiKey: tokenClean, baseUrl: 'https://api.saipos.com.br/v1' })
+        body: JSON.stringify({ name: name.trim(), type: 'saipos', apiKey: tokenClean, baseUrl: 'https://data.saipos.io/v1' })
       });
       if (!createRes.ok) {
         const j = await createRes.json().catch(() => ({}));

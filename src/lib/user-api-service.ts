@@ -55,7 +55,7 @@ export class UserAPIService {
           name: data.name,
           type: data.type,
           apiKey: data.apiKey,
-          baseUrl: data.baseUrl || 'https://api.saipos.com.br/v1',
+          baseUrl: data.baseUrl || 'https://data.saipos.io/v1',
           status: 'disconnected'
         }
       })
@@ -146,7 +146,7 @@ export class UserAPIService {
       // Teste REAL: tentar buscar lojas com o token
       const client = new SaiposAPIService({ 
         apiKey: api.apiKey, 
-        baseUrl: api.baseUrl || 'https://api.saipos.com.br/v1' 
+        baseUrl: api.baseUrl || 'https://data.saipos.io/v1' 
       })
       let status: 'connected' | 'error' = 'error'
       let errorMessage: string | null = null
