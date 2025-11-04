@@ -46,27 +46,25 @@ export function StoreCarousel() {
           return;
         }
 
-        // Buscar lojas de todas as APIs conectadas e agregar
-        const allStores: SaiposStore[] = [];
-        for (const apiConfig of connectedSaiposAPIs) {
-          console.log(`🔗 Usando API: ${apiConfig.name}`);
-          const userSaiposAPI = new SaiposAPIService({
-            apiKey: apiConfig.apiKey!,
-            baseUrl: apiConfig.baseUrl || 'https://data.saipos.io/v1'
-          });
-          const stores = await userSaiposAPI.getStores();
-          // Anotar apiId de origem
-          stores.forEach(s => (s.apiId = apiConfig.id));
-          allStores.push(...stores);
-        }
+        // Como não há endpoint de lojas na API de dados, criar lojas baseadas nas APIs conectadas
+        const storesFromAPIs: SaiposStore[] = connectedSaiposAPIs.map((apiConfig, index) => ({
+          id: apiConfig.id,
+          name: apiConfig.name,
+          address: '',
+          phone: '',
+          status: 'active' as const,
+          apiId: apiConfig.id,
+          lastSync: apiConfig.lastTest ? new Date(apiConfig.lastTest).toISOString() : undefined,
+        }));
 
-        setSaiposStores(allStores);
-        console.log(`✅ ${allStores.length} lojas carregadas da Saipos (somando todas as APIs)`);
-        addToast(`${allStores.length} lojas carregadas da Saipos!`, "success");
+        setSaiposStores(storesFromAPIs);
+        console.log(`✅ ${storesFromAPIs.length} lojas criadas a partir das APIs conectadas`);
+        if (storesFromAPIs.length > 0) {
+          addToast(`${storesFromAPIs.length} loja(s) disponível(is)!`, "success");
+        }
       } catch (error) {
         console.error('❌ Erro ao carregar lojas:', error);
         addToast("Erro ao carregar lojas da Saipos", "error");
-        // Em caso de erro, manter array vazio
         setSaiposStores([]);
       } finally {
         setIsLoadingStores(false);
@@ -82,7 +80,7 @@ export function StoreCarousel() {
   const convertedStores: Store[] = saiposStores.map(saiposStore => ({
     id: saiposStore.id,
     name: saiposStore.name,
-    avatar: `/avatars/store-${saiposStore.id}.png`,
+    avatar: `/avatars/store-${(saiposStore.id.charCodeAt(0) % 4) + 1}.png`, // Avatar baseado no ID
     status: saiposStore.status === 'active' ? 'connected' : 'disconnected',
     lastSync: saiposStore.lastSync ? 
       `${Math.floor((Date.now() - new Date(saiposStore.lastSync).getTime()) / (1000 * 60))} min atrás` : 

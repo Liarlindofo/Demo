@@ -212,16 +212,23 @@ export function ReportsSection() {
 
     // Iniciar polling a cada 60s usando token da API
     const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
-    const targetApi = saiposApis[0];
+    const targetApi = selectedStore?.apiId
+      ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
+      : saiposApis[0];
     if (targetApi && selectedStore) {
       realtimeService.startPolling(async () => {
         try {
           const today = new Date().toISOString().split('T')[0];
-          const daily = await saiposHTTP.getDailyReport(today, targetApi.apiKey as string);
+          const raw = await saiposHTTP.getDailyReport(today, targetApi.apiKey as string);
+          const daily = normalizeDailyResponse(raw);
           return {
             storeId: selectedStore.id,
             type: 'sales',
-            data: { totalSales: daily.totalSales },
+            data: { 
+              totalSales: daily.totalSales || daily.totalRevenue || 0,
+              totalOrders: daily.totalOrders || 0,
+              averageTicket: daily.averageTicket || 0,
+            },
             timestamp: new Date().toISOString(),
           } as RealtimeUpdate;
         } catch (error) {
@@ -229,7 +236,7 @@ export function ReportsSection() {
           return {
             storeId: selectedStore.id,
             type: 'sales',
-            data: { totalSales: 0 },
+            data: { totalSales: 0, totalOrders: 0, averageTicket: 0 },
             timestamp: new Date().toISOString(),
           } as RealtimeUpdate;
         }
