@@ -61,44 +61,80 @@ export async function GET(request: NextRequest) {
     }
 
     // Fazer requisição para a API da Saipos pelo servidor (sem CORS)
+    // Implementar paginação para buscar TODAS as vendas
     const startDateTime = `${date}T00:00:00`
     const endDateTime = `${date}T23:59:59`
-    const url = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(startDateTime)}&p_filter_date_end=${encodeURIComponent(endDateTime)}&p_limit=300&p_offset=0`
-
     const token = targetApi.apiKey.trim().replace(/^Bearer\s+/i, '')
     
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store',
-    })
+    const allSales: unknown[] = []
+    let offset = 0
+    const limit = 300
+    let hasMoreData = true
+    
+    console.log('🔄 Iniciando busca paginada de vendas para:', date)
+    
+    while (hasMoreData) {
+      const url = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(startDateTime)}&p_filter_date_end=${encodeURIComponent(endDateTime)}&p_limit=${limit}&p_offset=${offset}`
+      
+      console.log(`📥 Buscando vendas: offset=${offset}, limit=${limit}`)
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Erro desconhecido')
-      console.error('Erro na API Saipos:', response.status, errorText)
-      return NextResponse.json(
-        { error: `Erro na API Saipos: ${response.status} ${response.statusText}` },
-        { status: response.status }
-      )
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Erro desconhecido')
+        console.error('Erro na API Saipos:', response.status, errorText)
+        return NextResponse.json(
+          { error: `Erro na API Saipos: ${response.status} ${response.statusText}` },
+          { status: response.status }
+        )
+      }
+
+      const data = await response.json()
+      
+      // Verificar se retornou dados
+      if (!data || (Array.isArray(data) && data.length === 0)) {
+        hasMoreData = false
+        break
+      }
+      
+      // Adicionar dados ao array total
+      if (Array.isArray(data)) {
+        allSales.push(...data)
+        console.log(`✅ Página carregada: ${data.length} vendas (total: ${allSales.length})`)
+        
+        // Se retornou menos que o limite, não há mais páginas
+        if (data.length < limit) {
+          hasMoreData = false
+        } else {
+          offset += limit
+        }
+      } else {
+        // Se não é array, retornar como está (pode ser erro ou estrutura diferente)
+        console.log('⚠️ Resposta não é array, retornando dados diretos')
+        return NextResponse.json(data)
+      }
     }
-
-    const data = await response.json()
+    
+    console.log(`📊 Total de vendas carregadas: ${allSales.length}`)
     
     // Log detalhado do que foi retornado da API
     console.log('📡 Resposta da API Saipos (daily):', {
-      status: response.status,
-      dataType: Array.isArray(data) ? 'array' : typeof data,
-      dataLength: Array.isArray(data) ? data.length : 'N/A',
-      dataKeys: data && typeof data === 'object' ? Object.keys(data) : [],
-      firstItem: Array.isArray(data) && data.length > 0 ? data[0] : null,
-      rawDataPreview: JSON.stringify(data).substring(0, 500),
+      status: 200,
+      dataType: 'array',
+      dataLength: allSales.length,
+      firstItem: allSales.length > 0 ? allSales[0] : null,
+      pages: Math.ceil(allSales.length / limit),
     })
     
-    return NextResponse.json(data)
+    return NextResponse.json(allSales)
   } catch (error: unknown) {
     console.error('Erro ao buscar relatório diário:', error)
     const message = error instanceof Error ? error.message : 'Erro interno do servidor'
