@@ -342,25 +342,57 @@ export function ReportsSection() {
     if (targetApi && selectedStore) {
       realtimeService.startPolling(async () => {
         try {
-          const today = new Date().toISOString().split('T')[0];
-          const raw = await saiposHTTP.getDailyReport(today, targetApi.apiKey as string, targetApi.id);
-          const daily = normalizeDailyResponse(raw);
+          const start = `${dateStart}T00:00:00`;
+          const end = `${dateEnd}T23:59:59`;
+          const params = new URLSearchParams({ data_inicial: start, data_final: end });
+          if (targetApi.id) params.append('apiId', targetApi.id);
+
+          const res = await fetch(`/api/saipos/vendas?${params.toString()}`, {
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+          });
+          const resp = await res.json().catch(() => ({ data: [], meta: { status: res.status } }));
+          console.debug('Saipos meta:', resp?.meta);
+
+          const vendas = Array.isArray(resp?.data) ? resp.data : [];
+          if (vendas.length === 0) {
+            // Não altere os números atuais se não houver dados
+            return {
+              storeId: selectedStore.id,
+              type: 'sales',
+              data: {
+                totalSales: dashboardData.totalSales,
+                totalOrders: dashboardData.totalOrders,
+                averageTicket: dashboardData.averageTicket,
+              },
+              timestamp: new Date().toISOString(),
+            } as RealtimeUpdate;
+          }
+
+          const normalized = normalizeSalesResponse(vendas);
+          const totals = normalized.reduce((acc, item) => ({
+            totalSales: acc.totalSales + (item.totalSales || 0),
+            totalOrders: acc.totalOrders + (item.totalOrders || 0),
+          }), { totalSales: 0, totalOrders: 0 });
+          const averageTicket = totals.totalOrders > 0 ? totals.totalSales / totals.totalOrders : 0;
+
           return {
             storeId: selectedStore.id,
             type: 'sales',
-            data: { 
-              totalSales: daily.totalSales || daily.totalRevenue || 0,
-              totalOrders: daily.totalOrders || 0,
-              averageTicket: daily.averageTicket || 0,
-            },
+            data: { totalSales: totals.totalSales, totalOrders: totals.totalOrders, averageTicket },
             timestamp: new Date().toISOString(),
           } as RealtimeUpdate;
         } catch (error) {
-          console.error('Erro no polling de dados diários:', error);
+          console.error('Erro no polling de dados de vendas:', error);
+          // Não zerar: manter números atuais
           return {
             storeId: selectedStore.id,
             type: 'sales',
-            data: { totalSales: 0, totalOrders: 0, averageTicket: 0 },
+            data: {
+              totalSales: dashboardData.totalSales,
+              totalOrders: dashboardData.totalOrders,
+              averageTicket: dashboardData.averageTicket,
+            },
             timestamp: new Date().toISOString(),
           } as RealtimeUpdate;
         }
@@ -371,7 +403,7 @@ export function ReportsSection() {
       realtimeService.unsubscribe(listenerId);
       realtimeService.stopPolling();
     };
-  }, [selectedStore, updateDashboardData, connectedAPIs]);
+  }, [selectedStore, updateDashboardData, connectedAPIs, dateStart, dateEnd, dashboardData.totalSales, dashboardData.totalOrders, dashboardData.averageTicket]);
 
   // ✅ Memo para evitar loop infinito
   const chartData = useMemo(() => {
