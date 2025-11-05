@@ -65,8 +65,8 @@ export async function GET(request: NextRequest) {
     // Implementar paginação para buscar TODAS as vendas
     // Se data_inicial e data_final já vierem com horas, usar diretamente
     // Caso contrário, adicionar horas padrão
-    let startDateTime = data_inicial.includes('T') ? data_inicial : `${data_inicial}T00:00:00`
-    let endDateTime = data_final.includes('T') ? data_final : `${data_final}T23:59:59`
+    const startDateTime = data_inicial.includes('T') ? data_inicial : `${data_inicial}T00:00:00`
+    const endDateTime = data_final.includes('T') ? data_final : `${data_final}T23:59:59`
     const token = targetApi.apiKey.trim().replace(/^Bearer\s+/i, '')
     
     const allSales: unknown[] = []

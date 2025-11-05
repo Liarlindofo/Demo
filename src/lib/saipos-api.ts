@@ -689,7 +689,7 @@ export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
     }
 
     // Agora apiJson deve ser um array
-    let salesArray: JsonObject[] = Array.isArray(apiJson) ? apiJson as JsonObject[] : [];
+    const salesArray: JsonObject[] = Array.isArray(apiJson) ? apiJson as JsonObject[] : [];
 
     if (salesArray.length === 0) {
       return [];
