@@ -66,13 +66,27 @@ export function ReportsSection() {
   };
 
   // Converter data local (YYYY-MM-DD) para intervalo UTC considerando fechamento às 23:30 (UTC-3)
+  const formatSaiposDate = (date: Date): string => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const yyyy = date.getFullYear();
+    const mm = pad(date.getMonth() + 1);
+    const dd = pad(date.getDate());
+    const hh = pad(date.getHours());
+    const min = pad(date.getMinutes());
+    const ss = pad(date.getSeconds());
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}-03:00`;
+  };
+
   const getSaiposRange = (dateString: string): { start: string; end: string } => {
     const base = new Date(`${dateString}T00:00:00`);
+    // Início às 17:00 BR
     const start = new Date(base);
-    start.setHours(17 + 3, 0, 0, 0); // 17:00 BR → 20:00 UTC
+    start.setHours(17, 0, 0, 0);
+    // Fim às 23:30 BR → dia seguinte
     const end = new Date(base);
-    end.setHours(23 + 3, 30, 0, 0);  // 23:30 BR → 02:30 UTC (dia seguinte)
-    return { start: start.toISOString(), end: end.toISOString() };
+    end.setHours(23, 30, 0, 0);
+    end.setDate(end.getDate() + 1);
+    return { start: formatSaiposDate(start), end: formatSaiposDate(end) };
   };
 
   // Estados para datas inicial e final
