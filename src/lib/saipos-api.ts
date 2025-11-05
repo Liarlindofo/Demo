@@ -695,10 +695,30 @@ export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
       return [];
     }
 
+    // Deduplicar vendas por ID para evitar contar a mesma venda múltiplas vezes
+    const uniqueSalesMap = new Map<string, JsonObject>();
+    salesArray.forEach((sale: JsonObject) => {
+      const saleId = toStringVal(sale.id_sale ?? sale.id ?? sale.numero ?? '');
+      if (saleId && !uniqueSalesMap.has(saleId)) {
+        uniqueSalesMap.set(saleId, sale);
+      } else if (!saleId) {
+        // Se não tem ID, usar uma chave composta por data + número da nota
+        const nfce = getProp(sale, 'nfce');
+        const nfceNum = nfce && typeof nfce === 'object' ? toStringVal((nfce as JsonObject).numero) : '';
+        const compositeKey = `${toStringVal(sale.shift_date ?? sale.created_at ?? sale.date)}_${nfceNum}`;
+        if (!uniqueSalesMap.has(compositeKey)) {
+          uniqueSalesMap.set(compositeKey, sale);
+        }
+      }
+    });
+    
+    const uniqueSalesArray = Array.from(uniqueSalesMap.values());
+    console.log(`🔄 Deduplicação: ${salesArray.length} vendas → ${uniqueSalesArray.length} vendas únicas`);
+
     // Agrupar vendas por data (shift_date)
     const salesByDate = new Map<string, JsonObject[]>();
     
-    salesArray.forEach((sale: JsonObject) => {
+    uniqueSalesArray.forEach((sale: JsonObject) => {
       const shiftDate = toStringVal(sale.shift_date ?? sale.created_at ?? sale.date);
       const dateOnly = shiftDate.split('T')[0]; // Extrair apenas a data
       

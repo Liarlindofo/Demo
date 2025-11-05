@@ -62,17 +62,49 @@ export async function GET(request: NextRequest) {
     }
 
     // Fazer requisição para a API da Saipos pelo servidor (sem CORS)
-    // Implementar paginação para buscar TODAS as vendas
+    // Implementar paginação para buscar TODAS as vendas com tratamento de rate limiting
     const startDateTime = `${date}T00:00:00`
     const endDateTime = `${date}T23:59:59`
     const token = targetApi.apiKey.trim().replace(/^Bearer\s+/i, '')
     
     const allSales: unknown[] = []
     let offset = 0
-    const limit = 300
+    const limit = 200 // Aumentar limit para reduzir número de requisições
     let hasMoreData = true
+    const delayBetweenRequests = 5000 // Delay de 5 segundos entre requisições para evitar rate limiting
+    const maxRetries = 3
+    
+    // Função helper para fazer delay
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+    
+    // Função helper para fazer requisição com retry
+    const fetchWithRetry = async (url: string, retries = maxRetries): Promise<Response> => {
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store',
+        })
+
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After')
+          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : (attempt * 2000)
+          console.warn(`⚠️ Rate limit (429) - tentativa ${attempt}/${retries}. Aguardando ${waitTime}ms...`)
+          await sleep(waitTime)
+          continue
+        }
+
+        return response
+      }
+      throw new Error(`Rate limit após ${retries} tentativas`)
+    }
     
     console.log('🔄 Iniciando busca paginada de vendas para:', date)
+    console.log(`⚠️ Usando limit=${limit}, delay=${delayBetweenRequests}ms entre requisições`)
     
     while (hasMoreData) {
       const storeIdQuery = storeId ? `&store_id=${encodeURIComponent(storeId)}` : ''
@@ -80,17 +112,18 @@ export async function GET(request: NextRequest) {
       
       console.log(`📥 Buscando vendas: offset=${offset}, limit=${limit}`)
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store',
-      })
+      let response: Response
+      try {
+        response = await fetchWithRetry(url)
+      } catch (error) {
+        console.error('Erro ao fazer requisição:', error)
+        return NextResponse.json(
+          { error: `Erro na API Saipos: Rate limit após múltiplas tentativas` },
+          { status: 429 }
+        )
+      }
 
-      if (!response.ok) {
+      if (!response.ok && response.status !== 429) {
         const errorText = await response.text().catch(() => 'Erro desconhecido')
         console.error('Erro na API Saipos:', response.status, errorText)
         return NextResponse.json(
@@ -117,6 +150,11 @@ export async function GET(request: NextRequest) {
           hasMoreData = false
         } else {
           offset += limit
+        }
+        
+        // Aguardar antes da próxima requisição para evitar rate limiting
+        if (hasMoreData) {
+          await sleep(delayBetweenRequests)
         }
       } else {
         // Se não é array, retornar como está (pode ser erro ou estrutura diferente)

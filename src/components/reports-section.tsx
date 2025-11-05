@@ -78,14 +78,19 @@ export function ReportsSection() {
   }, []);
 
   const getSaiposRange = useCallback((dateString: string): { start: string; end: string } => {
-    const base = new Date(`${dateString}T00:00:00`);
-    const start = new Date(base);
-    start.setHours(17, 0, 0, 0);
-    const end = new Date(base);
-    end.setHours(23, 30, 0, 0);
-    end.setDate(end.getDate() + 1);
-    return { start: formatSaiposDate(start), end: formatSaiposDate(end) };
-  }, [formatSaiposDate]);
+    // start = dataInicial + T17:00:00-03:00
+    const start = `${dateString}T17:00:00-03:00`;
+    
+    // end = dataFinal + T03:30:00-03:00 + 1 dia
+    const date = new Date(`${dateString}T03:30:00-03:00`);
+    date.setDate(date.getDate() + 1);
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    const end = `${yyyy}-${mm}-${dd}T03:30:00-03:00`;
+    
+    return { start, end };
+  }, []);
 
   // Estados para datas inicial e final
   const [dateStart, setDateStart] = useState<string>(getToday());
@@ -133,7 +138,9 @@ export function ReportsSection() {
       const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
       if (saiposApis.length > 0) {
         addToast(`Data alterada para ${date.toLocaleDateString("pt-BR")}`, "info");
-        loadDailyData(date);
+        // DESABILITADO: loadDailyData causa requisições simultâneas e rate limiting
+        // Os dados já são carregados via loadSalesData que busca todas as vendas
+        // loadDailyData(date);
       } else {
         addToast('Conecte uma API Saipos para visualizar relatórios diários', "info");
       }
@@ -153,8 +160,17 @@ export function ReportsSection() {
         ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
 
-      // Chamar a nova rota /api/saipos/vendas com data_inicial e data_final (UTC considerando 23:30 BR)
-      const { start, end } = getSaiposRange(dateStart);
+      // Calcular o range de datas considerando horário de funcionamento (17:00-03:30)
+      const rangeStart = getSaiposRange(dateStart);
+      const rangeEnd = getSaiposRange(dateEnd);
+      
+      // start = início do dateStart (17:00)
+      const start = rangeStart.start;
+      // end = fim do dateEnd (03:30 do dia seguinte)
+      const end = rangeEnd.end;
+      
+      console.log("Período selecionado - dateStart:", dateStart, "dateEnd:", dateEnd);
+      console.log("Range calculado - start:", start, "end:", end);
       
       const params = new URLSearchParams({ data_inicial: start, data_final: end });
       if (targetApi.id) {
@@ -174,26 +190,66 @@ export function ReportsSection() {
       console.debug('Saipos meta:', resp?.meta);
 
       if (resp?.meta?.status >= 400) {
-        setErrorMsg(`Erro ao conectar à Saipos (status ${resp.meta.status})`);
+        console.error('Erro na resposta da API:', resp?.meta?.error);
+        setErrorMsg(`Erro ao conectar à Saipos (status ${resp.meta.status}): ${resp.meta.error || 'Erro desconhecido'}`);
+        setSalesData([]);
+        updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
+        return;
       }
 
       const vendas = Array.isArray(resp?.data) ? resp.data : [];
+      console.log('📦 Vendas recebidas (raw):', vendas.length);
+      console.log('📦 Resposta completa:', resp);
+      if (vendas.length > 0) {
+        console.log('📦 Primeira venda (sample):', JSON.stringify(vendas[0]).substring(0, 300));
+      }
 
       if (vendas.length === 0) {
         // Não lançar erro; apenas renderizar vazio/zeros
+        console.log('⚠️ Nenhuma venda encontrada no período');
+        console.log('⚠️ Meta da resposta:', resp?.meta);
         setSalesData([]);
         updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
         addToast('Sem vendas no período selecionado', 'info');
         return;
       }
 
+      console.log('🔄 Normalizando vendas...');
       const normalized = normalizeSalesResponse(vendas);
+      console.log('✅ Vendas normalizadas:', normalized.length);
+      if (normalized.length > 0) {
+        console.log('✅ Primeira venda normalizada (sample):', JSON.stringify(normalized[0]).substring(0, 300));
+      }
+
+      if (!Array.isArray(normalized) || normalized.length === 0) {
+        console.warn('Normalização retornou array vazio ou inválido');
+        setSalesData([]);
+        updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
+        addToast('Erro ao processar dados de vendas', 'error');
+        return;
+      }
 
       setSalesData(normalized);
       
-      // Atualizar dashboard com os dados agregados
-      if (normalized.length > 0) {
-        const totals = normalized.reduce((acc, item) => ({
+      // Filtrar apenas vendas do período selecionado (dateStart a dateEnd)
+      const startDateOnly = dateStart.split('T')[0];
+      const endDateOnly = dateEnd.split('T')[0];
+      
+      const filteredByPeriod = normalized.filter(item => {
+        const itemDate = item.date?.split('T')[0] || item.date;
+        return itemDate >= startDateOnly && itemDate <= endDateOnly;
+      });
+      
+      console.log(`📅 Período selecionado: ${startDateOnly} a ${endDateOnly}`);
+      console.log(`📅 Vendas normalizadas (total): ${normalized.length}`);
+      console.log(`📅 Vendas filtradas pelo período: ${filteredByPeriod.length}`);
+      if (filteredByPeriod.length > 0) {
+        console.log(`📅 Datas encontradas no período:`, filteredByPeriod.map(v => v.date));
+      }
+      
+      // Atualizar dashboard com os dados agregados APENAS do período selecionado
+      if (filteredByPeriod.length > 0) {
+        const totals = filteredByPeriod.reduce((acc, item) => ({
           totalSales: acc.totalSales + (item.totalSales || 0),
           totalOrders: acc.totalOrders + (item.totalOrders || 0),
           uniqueCustomers: acc.uniqueCustomers + (item.uniqueCustomers || 0),
@@ -213,10 +269,14 @@ export function ReportsSection() {
 
       addToast("Dados atualizados com sucesso!", "success");
     } catch (error) {
-      console.error("Erro ao carregar dados:", error);
+      console.error("=== ERRO AO CARREGAR DADOS ===");
+      console.error("Erro completo:", error);
+      console.error("Erro message:", error instanceof Error ? error.message : String(error));
+      console.error("Erro stack:", error instanceof Error ? error.stack : 'N/A');
       addToast("Erro ao carregar dados da Saipos", "error");
-      setErrorMsg("Erro ao conectar à Saipos");
+      setErrorMsg(error instanceof Error ? error.message : "Erro ao conectar à Saipos");
       setSalesData([]);
+      updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
     } finally {
       setIsLoading(false);
     }
@@ -361,7 +421,13 @@ export function ReportsSection() {
     if (targetApi && selectedStore) {
       realtimeService.startPolling(async () => {
         try {
-          const { start, end } = getSaiposRange(dateStart);
+          // Calcular o range de datas considerando horário de funcionamento (17:00-03:30)
+          const rangeStart = getSaiposRange(dateStart);
+          const rangeEnd = getSaiposRange(dateEnd);
+          
+          const start = rangeStart.start;
+          const end = rangeEnd.end;
+          
           const params = new URLSearchParams({
             data_inicial: start,
             data_final: end,
