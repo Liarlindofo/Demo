@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const apiId = searchParams.get('apiId')
+    const storeId = searchParams.get('storeId')
 
     if (!startDate || !endDate) {
       return NextResponse.json(
@@ -75,7 +76,8 @@ export async function GET(request: NextRequest) {
     console.log('🔄 Iniciando busca paginada de vendas para:', startDate, 'até', endDate)
     
     while (hasMoreData) {
-      const url = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(startDateTime)}&p_filter_date_end=${encodeURIComponent(endDateTime)}&p_limit=${limit}&p_offset=${offset}`
+      const storeIdQuery = storeId ? `&store_id=${encodeURIComponent(storeId)}` : ''
+      const url = `https://data.saipos.io/v1/search_sales?p_date_column_filter=sale_date&p_filter_date_start=${encodeURIComponent(startDateTime)}&p_filter_date_end=${encodeURIComponent(endDateTime)}${storeIdQuery}&p_limit=${limit}&p_offset=${offset}`
       
       console.log(`📥 Buscando vendas: offset=${offset}, limit=${limit}`)
       

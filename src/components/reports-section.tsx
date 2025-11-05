@@ -162,6 +162,9 @@ export function ReportsSection() {
       if (targetApi.id) {
         params.append('apiId', targetApi.id);
       }
+      if (selectedStore?.id) {
+        params.append('storeId', String(selectedStore.id));
+      }
 
       const res = await fetch(`/api/saipos/vendas?${params.toString()}`, {
         headers: { 
@@ -365,6 +368,7 @@ export function ReportsSection() {
           const { start, end } = getSaiposRange(dateStart);
           const params = new URLSearchParams({ data_inicial: start, data_final: end });
           if (targetApi.id) params.append('apiId', targetApi.id);
+          if (selectedStore?.id) params.append('storeId', String(selectedStore.id));
 
           const res = await fetch(`/api/saipos/vendas?${params.toString()}`, {
             headers: { 'Content-Type': 'application/json' },
