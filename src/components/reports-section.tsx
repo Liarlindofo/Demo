@@ -141,6 +141,7 @@ export function ReportsSection() {
       if (saiposApis.length === 0) {
         console.log('⚠️ Nenhuma API Saipos conectada para carregar dados diários');
         setDailyData(null);
+        setErrorMsg("Conecte uma API Saipos em /connections para visualizar dados");
         return;
       }
       const targetApi = selectedStore?.apiId
@@ -153,10 +154,34 @@ export function ReportsSection() {
       const raw = await saiposHTTP.getDailyReport(dateStr, targetApi.apiKey as string, targetApi.id);
       console.log('📦 Dados brutos recebidos (daily):', raw);
       
+      // Verificar se a resposta é null ou array vazio
+      if (raw === null || raw === undefined || (Array.isArray(raw) && raw.length === 0)) {
+        console.log(`⚠️ Nenhuma venda encontrada para ${dateStr}`);
+        setDailyData(null);
+        
+        // Sugerir datas anteriores com dados
+        const yesterday = new Date(date);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const twoDaysAgo = new Date(date);
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        
+        setErrorMsg(`Nenhuma venda em ${date.toLocaleDateString('pt-BR')}. Tente: ${yesterday.toLocaleDateString('pt-BR')}, ${twoDaysAgo.toLocaleDateString('pt-BR')} ou 02/11/2025.`);
+        
+        // Limpar os valores do dashboard
+        updateDashboardData({
+          totalSales: 0,
+          totalOrders: 0,
+          averageTicket: 0,
+          uniqueCustomers: 0,
+        });
+        return;
+      }
+      
       const normalized = normalizeDailyResponse(raw);
       console.log('✅ Dados normalizados (daily):', normalized);
       
       setDailyData(normalized);
+      setErrorMsg(null); // Limpar erro se houver sucesso
       
       // Se retornou dados válidos, atualizar o dashboard
       if (normalized && normalized.totalOrders > 0) {
@@ -167,16 +192,38 @@ export function ReportsSection() {
           averageTicket: normalized.averageTicket,
           uniqueCustomers: normalized.uniqueCustomers,
         });
+        addToast(`✅ ${normalized.totalOrders} vendas carregadas para ${date.toLocaleDateString('pt-BR')}`, "success");
       } else {
         console.log('⚠️ Nenhuma venda encontrada para o dia:', dateStr);
+        setErrorMsg(`Sem vendas em ${date.toLocaleDateString('pt-BR')}`);
+        updateDashboardData({
+          totalSales: 0,
+          totalOrders: 0,
+          averageTicket: 0,
+          uniqueCustomers: 0,
+        });
       }
     } catch (error) {
       console.error("❌ Erro ao carregar dados diários:", error);
       setDailyData(null);
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      if (!errorMsg.includes('Nenhuma API Saipos conectada')) {
-        setErrorMsg((prev) => prev || "Erro ao conectar à Saipos");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log("Erro detalhado:", errorMessage);
+      
+      if (errorMessage.includes('Não autenticado')) {
+        setErrorMsg("Faça login para visualizar os dados");
+      } else if (errorMessage.includes('não encontrada')) {
+        setErrorMsg("API Saipos não configurada. Configure em /connections");
+      } else {
+        setErrorMsg(`Erro ao buscar dados: ${errorMessage}`);
       }
+      
+      // Limpar dashboard em caso de erro
+      updateDashboardData({
+        totalSales: 0,
+        totalOrders: 0,
+        averageTicket: 0,
+        uniqueCustomers: 0,
+      });
     }
   };
 
