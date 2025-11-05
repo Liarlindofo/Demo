@@ -160,9 +160,7 @@ export function ReportsSection() {
       if (targetApi.id) {
         params.append('apiId', targetApi.id);
       }
-      if (selectedStore?.id) {
-        params.append('storeId', String(selectedStore.id));
-      }
+      // Enviar apenas apiId para o backend (não enviar storeId)
 
       const res = await fetch(`/api/saipos/vendas?${params.toString()}`, {
         headers: { 
@@ -368,7 +366,7 @@ export function ReportsSection() {
             data_inicial: start,
             data_final: end,
           });
-          
+          params.append('apiId', targetApi.id);
 
           const res = await fetch(`/api/saipos/vendas?${params.toString()}`, {
             headers: { 'Content-Type': 'application/json' },
