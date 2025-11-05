@@ -29,6 +29,12 @@ export interface SaiposSalesData {
     hall: number;
     ticket: number;
   };
+  // Breakdown por canal/origem (iFood, Telefone, Delivery Direto, etc.)
+  salesByOrigin?: Array<{
+    origin: string;
+    quantity: number;
+    revenue: number;
+  }>;
 }
 
 export interface SaiposStore {
@@ -756,6 +762,65 @@ export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
         .slice(0, 10)
         .map(p => ({ name: p.name, quantity: p.quantity, revenue: p.revenue }));
 
+      // Calcular breakdown por canal/origem
+      const originMap = new Map<string, { quantity: number; revenue: number }>();
+      
+      sales.forEach((sale: JsonObject) => {
+        let originName = 'Sem origem';
+        
+        const partnerSale = getProp(sale, 'partner_sale');
+        if (partnerSale && typeof partnerSale === 'object') {
+          const partnerObj = partnerSale as JsonObject;
+          const partnerName = toStringVal(partnerObj.desc_store_partner || partnerObj.name || partnerObj.partner);
+          if (partnerName && partnerName !== 'null' && partnerName !== '') {
+            originName = partnerName;
+          }
+        }
+        
+        if (originName === 'Sem origem') {
+          const descSale = toStringVal(getProp(sale, 'desc_sale'));
+          if (descSale && descSale !== 'null' && descSale !== '') {
+            originName = descSale;
+          }
+        }
+        
+        if (originName === 'Sem origem') {
+          const origin = toStringVal(getProp(sale, 'origin'));
+          if (origin && origin !== 'null' && origin !== '') {
+            originName = origin;
+          }
+        }
+        
+        // Normalizar nomes
+        originName = originName.toLowerCase();
+        if (originName.includes('ifood')) originName = 'iFood';
+        else if (originName.includes('telefone') || originName.includes('phone')) originName = 'Telefone';
+        else if (originName.includes('delivery direto') || originName.includes('direto')) originName = 'Delivery Direto';
+        else if (originName.includes('central')) originName = 'Central de Pedidos';
+        else if (originName.includes('whatsapp') || originName.includes('wa')) originName = 'WhatsApp';
+        else if (originName.includes('facebook')) originName = 'Facebook';
+        else if (originName.includes('anota')) originName = 'Anota.ai';
+        else originName = originName.charAt(0).toUpperCase() + originName.slice(1);
+        
+        const saleValue = getTotalSaleValue(sale);
+        
+        if (originMap.has(originName)) {
+          const existing = originMap.get(originName)!;
+          existing.quantity += 1;
+          existing.revenue += saleValue;
+        } else {
+          originMap.set(originName, { quantity: 1, revenue: saleValue });
+        }
+      });
+
+      const salesByOrigin = Array.from(originMap.entries())
+        .map(([origin, data]) => ({
+          origin,
+          quantity: data.quantity,
+          revenue: data.revenue,
+        }))
+        .sort((a, b) => b.revenue - a.revenue);
+
       return {
         date: date,
         totalSales: totalRevenue,
@@ -774,6 +839,7 @@ export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
           ticket: ticketSales.length,
         },
         topProducts: topProducts,
+        salesByOrigin: salesByOrigin,
       };
     });
   } catch (error) {
@@ -802,6 +868,7 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
         totalRevenue: 0,
         ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
         topProducts: [],
+        salesByOrigin: [],
       };
     }
     
@@ -834,6 +901,7 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
         totalRevenue: 0,
         ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
         topProducts: [],
+        salesByOrigin: [],
       };
     }
 
@@ -842,11 +910,19 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
     const shiftDate = toStringVal(firstSale.shift_date ?? firstSale.created_at ?? new Date().toISOString());
     const dateOnly = shiftDate.split('T')[0];
 
-    console.log('🔍 DEBUG - Primeira venda:', JSON.stringify(firstSale).substring(0, 300));
+    console.log('🔍 DEBUG - Primeira venda:', JSON.stringify(firstSale).substring(0, 500));
     console.log('🔍 DEBUG - Campos disponíveis na venda:', Object.keys(firstSale));
     console.log('🔍 DEBUG - total_amount:', firstSale.total_amount);
     console.log('🔍 DEBUG - total_sale_value:', firstSale.total_sale_value);
     console.log('🔍 DEBUG - id_sale_type:', firstSale.id_sale_type);
+    
+    // Verificar estrutura de partner_sale (canal/origem)
+    const partnerSale = getProp(firstSale, 'partner_sale');
+    console.log('🔍 DEBUG - partner_sale:', partnerSale);
+    const origin = getProp(firstSale, 'origin');
+    console.log('🔍 DEBUG - origin:', origin);
+    const desc_sale = getProp(firstSale, 'desc_sale');
+    console.log('🔍 DEBUG - desc_sale:', desc_sale);
 
     // Calcular totais por tipo de venda (id_sale_type)
     // 1=Delivery, 2=Retirada, 3=Salão, 4=Ficha
@@ -918,6 +994,72 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
 
     console.log('🔍 DEBUG - Top produtos:', topProducts.slice(0, 3));
 
+    // Calcular breakdown por canal/origem
+    const originMap = new Map<string, { quantity: number; revenue: number }>();
+    
+    salesArray.forEach((sale: JsonObject) => {
+      // Tentar diferentes campos para identificar o canal
+      let originName = 'Sem origem';
+      
+      // Verificar partner_sale (marketplace)
+      const partnerSale = getProp(sale, 'partner_sale');
+      if (partnerSale && typeof partnerSale === 'object') {
+        const partnerObj = partnerSale as JsonObject;
+        const partnerName = toStringVal(partnerObj.desc_store_partner || partnerObj.name || partnerObj.partner);
+        if (partnerName && partnerName !== 'null' && partnerName !== '') {
+          originName = partnerName;
+        }
+      }
+      
+      // Se não encontrou em partner_sale, verificar desc_sale
+      if (originName === 'Sem origem') {
+        const descSale = toStringVal(getProp(sale, 'desc_sale'));
+        if (descSale && descSale !== 'null' && descSale !== '') {
+          originName = descSale;
+        }
+      }
+      
+      // Se ainda não encontrou, verificar campo origin
+      if (originName === 'Sem origem') {
+        const origin = toStringVal(getProp(sale, 'origin'));
+        if (origin && origin !== 'null' && origin !== '') {
+          originName = origin;
+        }
+      }
+      
+      // Normalizar nomes comuns
+      originName = originName.toLowerCase();
+      if (originName.includes('ifood')) originName = 'iFood';
+      else if (originName.includes('telefone') || originName.includes('phone')) originName = 'Telefone';
+      else if (originName.includes('delivery direto') || originName.includes('direto')) originName = 'Delivery Direto';
+      else if (originName.includes('central')) originName = 'Central de Pedidos';
+      else if (originName.includes('whatsapp') || originName.includes('wa')) originName = 'WhatsApp';
+      else if (originName.includes('facebook')) originName = 'Facebook';
+      else if (originName.includes('anota')) originName = 'Anota.ai';
+      else originName = originName.charAt(0).toUpperCase() + originName.slice(1);
+      
+      const saleValue = getTotalSaleValue(sale);
+      
+      if (originMap.has(originName)) {
+        const existing = originMap.get(originName)!;
+        existing.quantity += 1;
+        existing.revenue += saleValue;
+      } else {
+        originMap.set(originName, { quantity: 1, revenue: saleValue });
+      }
+    });
+
+    const salesByOrigin = Array.from(originMap.entries())
+      .map(([origin, data]) => ({
+        origin,
+        quantity: data.quantity,
+        revenue: data.revenue,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    console.log('🔍 DEBUG - Vendas por canal/origem:', salesByOrigin);
+    console.log('🔍 DEBUG - Total de vendas processadas:', salesArray.length);
+
     const result = {
       date: dateOnly,
       totalSales: totalRevenue,
@@ -936,6 +1078,7 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
         ticket: ticketSales.length,
       },
       topProducts: topProducts,
+      salesByOrigin: salesByOrigin,
     };
 
     console.log('✅ DEBUG - Resultado final:', result);

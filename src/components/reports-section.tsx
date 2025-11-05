@@ -540,6 +540,54 @@ export function ReportsSection() {
         ))}
       </div>
 
+      {/* 🔹 Breakdown por Canal/Origem */}
+      {dailyData && dailyData.salesByOrigin && dailyData.salesByOrigin.length > 0 && (
+        <Card className="bg-[#141415] border-[#374151]">
+          <CardHeader>
+            <CardTitle className="text-white">📊 Vendas por Canal</CardTitle>
+            <CardDescription className="text-gray-400">
+              Breakdown de vendas por origem (iFood, Telefone, Delivery Direto, etc.)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {dailyData.salesByOrigin.map((channel, index) => (
+                <div
+                  key={index}
+                  className="bg-[#0f0f10] p-4 rounded-lg border border-[#374151] hover:border-[#001F05] transition-colors"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <p className="text-white font-semibold text-lg">{channel.origin}</p>
+                    <span className="text-xs text-gray-500 bg-[#374151] px-2 py-1 rounded">
+                      #{index + 1}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-gray-400 text-sm">
+                      Pedidos: <span className="text-white font-medium">{channel.quantity}</span>
+                    </p>
+                    <p className="text-gray-400 text-sm">
+                      Receita: <span className="text-green-400 font-bold">R$ {channel.revenue.toFixed(2)}</span>
+                    </p>
+                    {channel.quantity > 0 && (
+                      <p className="text-gray-500 text-xs">
+                        Ticket médio: R$ {(channel.revenue / channel.quantity).toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-[#374151]">
+              <p className="text-gray-400 text-sm text-center">
+                Total: <span className="text-white font-bold">{dailyData.salesByOrigin.reduce((sum, c) => sum + c.quantity, 0)} pedidos</span> | 
+                <span className="text-green-400 font-bold ml-1">R$ {dailyData.salesByOrigin.reduce((sum, c) => sum + c.revenue, 0).toFixed(2)}</span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 🔹 Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-[#141415] border-[#374151]">
