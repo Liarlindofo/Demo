@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const stackUser = await stackServerApp.getUser({ or: 'return-null' })
     if (!stackUser) {
       return NextResponse.json(
-        { error: 'Não autenticado' },
+        { data: [], meta: { status: 401, error: 'Não autenticado' } },
         { status: 401 }
       )
     }
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     if (!data_inicial || !data_final) {
       return NextResponse.json(
-        { error: 'data_inicial e data_final são obrigatórios' },
+        { data: [], meta: { status: 400, error: 'data_inicial e data_final são obrigatórios' } },
         { status: 400 }
       )
     }
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     if (!targetApi || !targetApi.apiKey) {
       return NextResponse.json(
-        { error: 'API Saipos não encontrada ou não conectada' },
+        { data: [], meta: { status: 404, error: 'API Saipos não encontrada ou não conectada' } },
         { status: 404 }
       )
     }
@@ -76,8 +76,10 @@ export async function GET(request: NextRequest) {
     
     console.log('🔄 Iniciando busca paginada de vendas para:', data_inicial, 'até', data_final)
     
+    let lastUrl = ''
     while (hasMoreData) {
       const url = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(startDateTime)}&p_filter_date_end=${encodeURIComponent(endDateTime)}&p_limit=${limit}&p_offset=${offset}`
+      lastUrl = url
       
       console.log(`📥 Buscando vendas: offset=${offset}, limit=${limit}`)
       
@@ -95,7 +97,7 @@ export async function GET(request: NextRequest) {
         const errorText = await response.text().catch(() => 'Erro desconhecido')
         console.error('Erro na API Saipos:', response.status, errorText)
         return NextResponse.json(
-          { error: `Erro na API Saipos: ${response.status} ${response.statusText}` },
+          { data: [], meta: { status: response.status, url: lastUrl, error: response.statusText } },
           { status: response.status }
         )
       }
@@ -121,8 +123,11 @@ export async function GET(request: NextRequest) {
         }
       } else {
         // Se não é array, retornar como está (pode ser erro ou estrutura diferente)
-        console.log('⚠️ Resposta não é array, retornando dados diretos')
-        return NextResponse.json(data)
+        console.log('⚠️ Resposta não é array, normalizando para envelope com data=[]')
+        return NextResponse.json(
+          { data: [], meta: { status: 200, url: lastUrl } },
+          { status: 200 }
+        )
       }
     }
     
@@ -137,13 +142,16 @@ export async function GET(request: NextRequest) {
       pages: Math.ceil(allSales.length / limit),
     })
     
-    return NextResponse.json(allSales)
+    return NextResponse.json(
+      { data: allSales, meta: { status: 200, url: lastUrl } },
+      { status: 200 }
+    )
   } catch (error: unknown) {
     console.error('Erro ao buscar dados de vendas:', error)
     const message = error instanceof Error ? error.message : 'Erro interno do servidor'
     return NextResponse.json(
-      { error: message },
-      { status: 500 }
+      { data: [], meta: { status: 502, error: message } },
+      { status: 502 }
     )
   }
 }

@@ -150,18 +150,25 @@ export function ReportsSection() {
         cache: 'no-store',
       });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Erro ao buscar dados de vendas');
+      // Sempre tentar ler o envelope do servidor
+      const resp = await res.json().catch(() => ({ data: [], meta: { status: res.status } }));
+      console.debug('Saipos meta:', resp?.meta);
+
+      if (resp?.meta?.status >= 400) {
+        setErrorMsg(`Erro ao conectar à Saipos (status ${resp.meta.status})`);
       }
 
-      const raw = await res.json();
-      const normalized = normalizeSalesResponse(raw);
-      
-      // Normalizar sempre retorna um array, então verificamos o length
-      if (!Array.isArray(normalized) || normalized.length === 0) {
-        throw new Error('Resposta da API sem dados utilizáveis');
+      const vendas = Array.isArray(resp?.data) ? resp.data : [];
+
+      if (vendas.length === 0) {
+        // Não lançar erro; apenas renderizar vazio/zeros
+        setSalesData([]);
+        updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
+        addToast('Sem vendas no período selecionado', 'info');
+        return;
       }
+
+      const normalized = normalizeSalesResponse(vendas);
 
       setSalesData(normalized);
       
