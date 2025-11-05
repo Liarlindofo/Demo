@@ -53,6 +53,22 @@ export function ReportsSection() {
     connectedAPIs
   } = useApp();
 
+  // Função para calcular datas subtraindo dias
+  const subtractDays = (days: number): string => {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return date.toISOString().split("T")[0];
+  };
+
+  // Função para obter data de hoje no formato YYYY-MM-DD
+  const getToday = (): string => {
+    return new Date().toISOString().split("T")[0];
+  };
+
+  // Estados para datas inicial e final
+  const [dateStart, setDateStart] = useState<string>(getToday());
+  const [dateEnd, setDateEnd] = useState<string>(getToday());
+
   const [salesData, setSalesData] = useState<SaiposSalesData[]>([]);
   const [dailyData, setDailyData] = useState<SaiposSalesData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -62,6 +78,30 @@ export function ReportsSection() {
 
   const handlePeriodChange = (period: string) => {
     setSelectedPeriod(period);
+    const hoje = getToday();
+    
+    switch (period) {
+      case "1d":
+        setDateStart(hoje);
+        setDateEnd(hoje);
+        break;
+      case "7d":
+        setDateStart(subtractDays(7));
+        setDateEnd(hoje);
+        break;
+      case "30d":
+        setDateStart(subtractDays(30));
+        setDateEnd(hoje);
+        break;
+      case "90d":
+        setDateStart(subtractDays(90));
+        setDateEnd(hoje);
+        break;
+      default:
+        setDateStart(subtractDays(30));
+        setDateEnd(hoje);
+    }
+    
     addToast(`Período alterado para ${period}`, "info");
   };
 
@@ -78,30 +118,11 @@ export function ReportsSection() {
     }
   };
 
-  // 🔹 Carregar dados da API Saipos
+  // 🔹 Carregar dados da API Saipos usando a nova rota /api/saipos/vendas
   const loadSalesData = useCallback(async () => {
     setIsLoading(true);
     try {
       setErrorMsg(null);
-      const endDate = new Date();
-      const startDate = new Date();
-
-      switch (selectedPeriod) {
-        case "7d":
-          startDate.setDate(endDate.getDate() - 7);
-          break;
-        case "30d":
-          startDate.setDate(endDate.getDate() - 30);
-          break;
-        case "90d":
-          startDate.setDate(endDate.getDate() - 90);
-          break;
-        case "1d":
-          startDate.setDate(endDate.getDate() - 1);
-          break;
-        default:
-          startDate.setDate(endDate.getDate() - 30);
-      }
 
       // Obter token da API conectada (da loja selecionada ou primeira conectada)
       const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
@@ -110,19 +131,56 @@ export function ReportsSection() {
         ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
 
-      const raw = await saiposHTTP.getSalesData(
-        startDate.toISOString().split("T")[0],
-        endDate.toISOString().split("T")[0],
-        targetApi.apiKey as string,
-        targetApi.id
-      );
+      // Chamar a nova rota /api/saipos/vendas com data_inicial e data_final
+      const params = new URLSearchParams({
+        data_inicial: dateStart,
+        data_final: dateEnd,
+      });
+      if (targetApi.id) {
+        params.append('apiId', targetApi.id);
+      }
 
+      const res = await fetch(`/api/saipos/vendas?${params.toString()}`, {
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Erro ao buscar dados de vendas');
+      }
+
+      const raw = await res.json();
       const normalized = normalizeSalesResponse(raw);
+      
       if (!Array.isArray(normalized) || normalized.length === 0) {
         throw new Error('Resposta da API sem dados utilizáveis');
       }
 
       setSalesData(normalized);
+      
+      // Atualizar dashboard com os dados agregados
+      if (normalized.length > 0) {
+        const totals = normalized.reduce((acc, item) => ({
+          totalSales: acc.totalSales + (item.totalSales || 0),
+          totalOrders: acc.totalOrders + (item.totalOrders || 0),
+          uniqueCustomers: acc.uniqueCustomers + (item.uniqueCustomers || 0),
+        }), { totalSales: 0, totalOrders: 0, uniqueCustomers: 0 });
+
+        const averageTicket = totals.totalOrders > 0 
+          ? totals.totalSales / totals.totalOrders 
+          : 0;
+
+        updateDashboardData({
+          totalSales: totals.totalSales,
+          totalOrders: totals.totalOrders,
+          averageTicket: averageTicket,
+          uniqueCustomers: totals.uniqueCustomers,
+        });
+      }
+
       addToast("Dados atualizados com sucesso!", "success");
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
@@ -132,7 +190,7 @@ export function ReportsSection() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPeriod, selectedStore, addToast, connectedAPIs]);
+  }, [dateStart, dateEnd, selectedStore, addToast, connectedAPIs, updateDashboardData]);
 
   // 🔹 Carregar dados diários
   const loadDailyData = async (date: Date) => {
@@ -227,34 +285,20 @@ export function ReportsSection() {
     }
   };
 
-  // 🔹 Efeito para carregar dados
+  // 🔹 Efeito para carregar dados quando as datas ou loja mudarem
   useEffect(() => {
     if (selectedStore) {
       loadSalesData();
-      const initialData = {
-        totalSales: Math.floor(Math.random() * 2000) + 1000,
-        totalOrders: Math.floor(Math.random() * 50) + 20,
-        averageTicket: Math.floor(Math.random() * 30) + 20,
-        uniqueCustomers: Math.floor(Math.random() * 30) + 10,
-        isSyncing: false
-      };
-      updateDashboardData(initialData);
     }
-  }, [selectedPeriod, selectedStore, loadSalesData, updateDashboardData]);
+  }, [dateStart, dateEnd, selectedStore, loadSalesData]);
 
-  // 🔹 Efeito para carregar relatórios diários
+  // 🔹 Efeito para inicializar datas quando o componente montar
   useEffect(() => {
-    if (!salesData.length) return;
+    const hoje = getToday();
+    setDateStart(hoje);
+    setDateEnd(hoje);
+  }, []);
 
-    const last = salesData[salesData.length - 1];
-    updateDashboardData({
-      totalSales: last.totalSales,
-      totalOrders: last.totalOrders,
-      averageTicket: last.averageTicket,
-      uniqueCustomers: last.uniqueCustomers,
-      isSyncing: false
-    });
-  }, [salesData, updateDashboardData]);
 
 
   // 🔹 Configurar atualizações em tempo real
@@ -380,23 +424,83 @@ export function ReportsSection() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
+          {/* Seletores de Data */}
+          <div className="flex gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-400">Data Inicial</label>
+              <input
+                type="date"
+                value={dateStart}
+                onChange={(e) => {
+                  setDateStart(e.target.value);
+                }}
+                className="px-3 py-2 bg-[#141415] border border-[#374151] rounded-md text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#001F05]"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-400">Data Final</label>
+              <input
+                type="date"
+                value={dateEnd}
+                onChange={(e) => {
+                  setDateEnd(e.target.value);
+                }}
+                className="px-3 py-2 bg-[#141415] border border-[#374151] rounded-md text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#001F05]"
+              />
+            </div>
+          </div>
+
+          {/* Botões de Filtro Rápido */}
           <div className="flex bg-[#141415] rounded-lg p-1">
-            {["1d", "7d", "30d", "90d"].map((period) => (
-              <Button
-                key={period}
-                variant={selectedPeriod === period ? "default" : "ghost"}
-                size="sm"
-                onClick={() => handlePeriodChange(period)}
-                className={`${
-                  selectedPeriod === period
-                    ? "bg-[#001F05] text-white"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                {period}
-              </Button>
-            ))}
+            <Button
+              variant={selectedPeriod === "1d" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handlePeriodChange("1d")}
+              className={`${
+                selectedPeriod === "1d"
+                  ? "bg-[#001F05] text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              1D
+            </Button>
+            <Button
+              variant={selectedPeriod === "7d" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handlePeriodChange("7d")}
+              className={`${
+                selectedPeriod === "7d"
+                  ? "bg-[#001F05] text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              7D
+            </Button>
+            <Button
+              variant={selectedPeriod === "30d" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handlePeriodChange("30d")}
+              className={`${
+                selectedPeriod === "30d"
+                  ? "bg-[#001F05] text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              30D
+            </Button>
+            <Button
+              variant={selectedPeriod === "90d" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handlePeriodChange("90d")}
+              className={`${
+                selectedPeriod === "90d"
+                  ? "bg-[#001F05] text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              90D
+            </Button>
           </div>
 
           <Dialog open={waOpen} onOpenChange={setWaOpen}>
@@ -430,18 +534,14 @@ export function ReportsSection() {
               <DialogFooter>
                 <Button
                   onClick={() => {
-                    const end = new Date();
-                    const start = new Date();
-                    if (selectedPeriod === '7d') start.setDate(end.getDate() - 7);
-                    else if (selectedPeriod === '30d') start.setDate(end.getDate() - 30);
-                    else if (selectedPeriod === '90d') start.setDate(end.getDate() - 90);
-                    else start.setDate(end.getDate() - 1);
-                    const last = salesData[salesData.length - 1];
+                    const startDate = new Date(dateStart);
+                    const endDate = new Date(dateEnd);
                     const msg = `Relatório ${selectedStore ? selectedStore.name : ''} (${selectedPeriod})\n` +
-                      `Período: ${start.toLocaleDateString('pt-BR')} a ${end.toLocaleDateString('pt-BR')}\n` +
-                      `Vendas: R$ ${last?.totalSales?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n` +
-                      `Pedidos: ${last?.totalOrders}\n` +
-                      `Ticket médio: R$ ${last?.averageTicket?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                      `Período: ${startDate.toLocaleDateString('pt-BR')} a ${endDate.toLocaleDateString('pt-BR')}\n` +
+                      `Vendas: R$ ${dashboardData.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n` +
+                      `Pedidos: ${dashboardData.totalOrders}\n` +
+                      `Ticket médio: R$ ${dashboardData.averageTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n` +
+                      `Clientes únicos: ${dashboardData.uniqueCustomers}`;
                     const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
                     if (typeof window !== 'undefined') window.open(url, '_blank');
                   }}
