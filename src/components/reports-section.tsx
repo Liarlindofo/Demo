@@ -65,6 +65,13 @@ export function ReportsSection() {
     return new Date().toISOString().split("T")[0];
   };
 
+  // Converter data local (YYYY-MM-DD) para UTC com offset de +3h
+  const applyUTCOffset = (dateString: string, endOfDay = false): string => {
+    const date = new Date(`${dateString}${endOfDay ? "T23:59:59" : "T00:00:00"}`);
+    date.setHours(date.getHours() + 3);
+    return date.toISOString();
+  };
+
   // Estados para datas inicial e final
   const [dateStart, setDateStart] = useState<string>(getToday());
   const [dateEnd, setDateEnd] = useState<string>(getToday());
@@ -131,9 +138,9 @@ export function ReportsSection() {
         ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
 
-      // Chamar a nova rota /api/saipos/vendas com data_inicial e data_final (incluindo horas)
-      const start = `${dateStart}T00:00:00`;
-      const end = `${dateEnd}T23:59:59`;
+      // Chamar a nova rota /api/saipos/vendas com data_inicial e data_final (UTC +3h)
+      const start = applyUTCOffset(dateStart, false);
+      const end = applyUTCOffset(dateEnd, true);
       
       const params = new URLSearchParams({
         data_inicial: start,
@@ -342,8 +349,8 @@ export function ReportsSection() {
     if (targetApi && selectedStore) {
       realtimeService.startPolling(async () => {
         try {
-          const start = `${dateStart}T00:00:00`;
-          const end = `${dateEnd}T23:59:59`;
+          const start = applyUTCOffset(dateStart, false);
+          const end = applyUTCOffset(dateEnd, true);
           const params = new URLSearchParams({ data_inicial: start, data_final: end });
           if (targetApi.id) params.append('apiId', targetApi.id);
 
