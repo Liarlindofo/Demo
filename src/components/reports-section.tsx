@@ -65,11 +65,17 @@ export function ReportsSection() {
     return new Date().toISOString().split("T")[0];
   };
 
-  // Converter data local (YYYY-MM-DD) para UTC com offset de +3h
-  const applyUTCOffset = (dateString: string, endOfDay = false): string => {
-    const date = new Date(`${dateString}${endOfDay ? "T23:59:59" : "T00:00:00"}`);
-    date.setHours(date.getHours() + 3);
-    return date.toISOString();
+  // Converter data local (YYYY-MM-DD) para intervalo UTC considerando fechamento às 23:30 (UTC-3)
+  const convertToSaiposRange = (dateString: string): { start: string; end: string } => {
+    const date = new Date(`${dateString}T00:00:00`);
+    const start = new Date(date);
+    start.setHours(start.getHours() + 3); // BR → UTC
+    const end = new Date(date);
+    end.setHours(end.getHours() + 3 + 23.5); // 23:30 BR → UTC
+    return {
+      start: start.toISOString(),
+      end: end.toISOString(),
+    };
   };
 
   // Estados para datas inicial e final
@@ -138,13 +144,13 @@ export function ReportsSection() {
         ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
 
-      // Chamar a nova rota /api/saipos/vendas com data_inicial e data_final (UTC +3h)
-      const start = applyUTCOffset(dateStart, false);
-      const end = applyUTCOffset(dateEnd, true);
+      // Chamar a nova rota /api/saipos/vendas com data_inicial e data_final (UTC considerando 23:30 BR)
+      const { start } = convertToSaiposRange(dateStart);
+      const { end: finalEnd } = convertToSaiposRange(dateEnd);
       
       const params = new URLSearchParams({
         data_inicial: start,
-        data_final: end,
+        data_final: finalEnd,
       });
       if (targetApi.id) {
         params.append('apiId', targetApi.id);
@@ -349,9 +355,9 @@ export function ReportsSection() {
     if (targetApi && selectedStore) {
       realtimeService.startPolling(async () => {
         try {
-          const start = applyUTCOffset(dateStart, false);
-          const end = applyUTCOffset(dateEnd, true);
-          const params = new URLSearchParams({ data_inicial: start, data_final: end });
+          const { start } = convertToSaiposRange(dateStart);
+          const { end: finalEnd } = convertToSaiposRange(dateEnd);
+          const params = new URLSearchParams({ data_inicial: start, data_final: finalEnd });
           if (targetApi.id) params.append('apiId', targetApi.id);
 
           const res = await fetch(`/api/saipos/vendas?${params.toString()}`, {
