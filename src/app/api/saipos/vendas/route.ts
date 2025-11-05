@@ -22,22 +22,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "API Saipos não encontrada" }, { status: 404 });
     }
 
-    const TOKEN = saiposAPI.apiKey;
-    const STORE_ID = saiposAPI.name;
+    const apiKey = saiposAPI.apiKey;
+    const storeId = saiposAPI.name;
 
-    if (!TOKEN) {
-      return NextResponse.json({ error: "Token Saipos ausente" }, { status: 401 });
+    if (!apiKey) {
+      return NextResponse.json({ error: "API key not found" }, { status: 401 });
     }
 
     // Logs de verificação
-    console.log("Saipos Token:", TOKEN ? "[PRESENTE]" : "[AUSENTE]");
-    console.log("Store ID:", STORE_ID);
+    console.log("Saipos Token:", apiKey ? "[PRESENTE]" : "[AUSENTE]");
+    console.log("Store ID:", storeId);
     console.log("API ID recebido:", apiId);
 
-    const apiUrl = `https://data.saipos.io/v1/search_sales?p_date_column_filter=sale_date&p_filter_date_start=${start}&p_filter_date_end=${end}&store_id=${STORE_ID}&limit=500`;
+    const apiUrl = `https://data.saipos.io/v1/search_sales?p_date_column_filter=sale_date&p_filter_date_start=${start}&p_filter_date_end=${end}&p_store_id=${storeId}&limit=500`;
 
     const response = await fetch(apiUrl, {
-      headers: { Authorization: `Bearer ${TOKEN}`, Accept: "application/json" },
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
       cache: "no-store",
     });
 
