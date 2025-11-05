@@ -65,8 +65,8 @@ export function ReportsSection() {
     return new Date().toISOString().split("T")[0];
   };
 
-  // Converter data local (YYYY-MM-DD) para intervalo UTC considerando fechamento às 23:30 (UTC-3)
-  const formatSaiposDate = (date: Date): string => {
+  // Converter data local (YYYY-MM-DD) para intervalo considerando 17:00–23:30 BR (-03:00)
+  const formatSaiposDate = useCallback((date: Date): string => {
     const pad = (n: number) => String(n).padStart(2, '0');
     const yyyy = date.getFullYear();
     const mm = pad(date.getMonth() + 1);
@@ -75,19 +75,17 @@ export function ReportsSection() {
     const min = pad(date.getMinutes());
     const ss = pad(date.getSeconds());
     return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}-03:00`;
-  };
+  }, []);
 
-  const getSaiposRange = (dateString: string): { start: string; end: string } => {
+  const getSaiposRange = useCallback((dateString: string): { start: string; end: string } => {
     const base = new Date(`${dateString}T00:00:00`);
-    // Início às 17:00 BR
     const start = new Date(base);
     start.setHours(17, 0, 0, 0);
-    // Fim às 23:30 BR → dia seguinte
     const end = new Date(base);
     end.setHours(23, 30, 0, 0);
     end.setDate(end.getDate() + 1);
     return { start: formatSaiposDate(start), end: formatSaiposDate(end) };
-  };
+  }, [formatSaiposDate]);
 
   // Estados para datas inicial e final
   const [dateStart, setDateStart] = useState<string>(getToday());
@@ -224,7 +222,7 @@ export function ReportsSection() {
     } finally {
       setIsLoading(false);
     }
-  }, [dateStart, dateEnd, selectedStore, addToast, connectedAPIs, updateDashboardData]);
+  }, [dateStart, dateEnd, selectedStore, addToast, connectedAPIs, updateDashboardData, getSaiposRange]);
 
   // 🔹 Carregar dados diários
   const loadDailyData = async (date: Date) => {
@@ -426,7 +424,7 @@ export function ReportsSection() {
       realtimeService.unsubscribe(listenerId);
       realtimeService.stopPolling();
     };
-  }, [selectedStore, updateDashboardData, connectedAPIs, dateStart, dateEnd, dashboardData.totalSales, dashboardData.totalOrders, dashboardData.averageTicket]);
+  }, [selectedStore, updateDashboardData, connectedAPIs, dateStart, dateEnd, dashboardData.totalSales, dashboardData.totalOrders, dashboardData.averageTicket, getSaiposRange]);
 
   // ✅ Memo para evitar loop infinito
   const chartData = useMemo(() => {

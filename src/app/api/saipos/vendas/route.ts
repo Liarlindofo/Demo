@@ -34,9 +34,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ data, meta: { status: response.status, url: apiUrl } });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { data: [], meta: { status: 500, error: err?.message }},
+      { data: [], meta: { status: 500, error: message }},
       { status: 500 }
     );
   }
