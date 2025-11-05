@@ -670,16 +670,26 @@ export function normalizeStoresResponse(apiJson: unknown): SaiposStore[] {
 
 export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
   try {
-    // A API retorna um array de vendas diretamente ou dentro de 'data'
-    const root = (apiJson ?? {}) as JsonObject;
-    let salesArray: JsonObject[] = [];
-    
+    // Se a API retornou array diretamente
     if (Array.isArray(apiJson)) {
-      salesArray = apiJson as JsonObject[];
-    } else {
+      // Não fazer nada, continuar processando o array diretamente
+    } else if (apiJson && typeof apiJson === 'object') {
+      // Se retornou no formato { data: [...] }
+      const root = apiJson as JsonObject;
       const candidate = getProp(root, 'data') ?? getProp(root, 'results') ?? getProp(root, 'sales');
-      salesArray = asArray(candidate);
+      if (Array.isArray(candidate)) {
+        apiJson = candidate;
+      } else {
+        // Se nenhum dos formatos reconhecidos, retornar array vazio
+        return [];
+      }
+    } else {
+      // Se nenhum dos formatos reconhecidos, retornar array vazio
+      return [];
     }
+
+    // Agora apiJson deve ser um array
+    let salesArray: JsonObject[] = Array.isArray(apiJson) ? apiJson as JsonObject[] : [];
 
     if (salesArray.length === 0) {
       return [];
@@ -850,14 +860,8 @@ export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
 
 export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
   try {
-    // DEBUG: Log da estrutura recebida
-    console.log('🔍 DEBUG normalizeDailyResponse - Tipo de dados recebidos:', typeof apiJson);
-    console.log('🔍 DEBUG normalizeDailyResponse - É array?', Array.isArray(apiJson));
-    console.log('🔍 DEBUG normalizeDailyResponse - Dados recebidos:', JSON.stringify(apiJson).substring(0, 500));
-    
     // Verificar se é null ou undefined
     if (apiJson === null || apiJson === undefined) {
-      console.log('⚠️ API retornou null/undefined - sem vendas para o período');
       const today = new Date().toISOString().split('T')[0];
       return {
         date: today,
@@ -872,26 +876,49 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
       };
     }
     
-    // A API retorna um array de vendas
-    const root = (apiJson ?? {}) as JsonObject;
+    // Se a API retornou array diretamente
     let salesArray: JsonObject[] = [];
-    
     if (Array.isArray(apiJson)) {
       salesArray = apiJson as JsonObject[];
-    } else if (typeof apiJson === 'object') {
-      // Tentar encontrar o array em diferentes locais possíveis
+    } else if (apiJson && typeof apiJson === 'object') {
+      // Se retornou no formato { data: [...] }
+      const root = apiJson as JsonObject;
       const candidate = getProp(root, 'data') ?? getProp(root, 'results') ?? getProp(root, 'sales') ?? getProp(root, 'items');
-      if (candidate) {
-        salesArray = asArray(candidate);
+      if (Array.isArray(candidate)) {
+        salesArray = candidate;
+      } else {
+        // Se nenhum dos formatos reconhecidos, retornar array vazio no objeto padrão
+        const today = new Date().toISOString().split('T')[0];
+        return {
+          date: today,
+          totalSales: 0,
+          totalOrders: 0,
+          averageTicket: 0,
+          uniqueCustomers: 0,
+          totalRevenue: 0,
+          ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
+          topProducts: [],
+          salesByOrigin: [],
+        };
       }
-      console.log('🔍 DEBUG - Chaves disponíveis no objeto:', Object.keys(root));
+    } else {
+      // Se nenhum dos formatos reconhecidos, retornar array vazio no objeto padrão
+      const today = new Date().toISOString().split('T')[0];
+      return {
+        date: today,
+        totalSales: 0,
+        totalOrders: 0,
+        averageTicket: 0,
+        uniqueCustomers: 0,
+        totalRevenue: 0,
+        ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
+        topProducts: [],
+        salesByOrigin: [],
+      };
     }
-
-    console.log('🔍 DEBUG - Total de vendas encontradas:', salesArray.length);
 
     if (salesArray.length === 0) {
       const today = new Date().toISOString().split('T')[0];
-      console.log('⚠️ Nenhuma venda encontrada para processar');
       return {
         date: today,
         totalSales: 0,

@@ -131,10 +131,13 @@ export function ReportsSection() {
         ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
 
-      // Chamar a nova rota /api/saipos/vendas com data_inicial e data_final
+      // Chamar a nova rota /api/saipos/vendas com data_inicial e data_final (incluindo horas)
+      const start = `${dateStart}T00:00:00`;
+      const end = `${dateEnd}T23:59:59`;
+      
       const params = new URLSearchParams({
-        data_inicial: dateStart,
-        data_final: dateEnd,
+        data_inicial: start,
+        data_final: end,
       });
       if (targetApi.id) {
         params.append('apiId', targetApi.id);
@@ -155,6 +158,7 @@ export function ReportsSection() {
       const raw = await res.json();
       const normalized = normalizeSalesResponse(raw);
       
+      // Normalizar sempre retorna um array, então verificamos o length
       if (!Array.isArray(normalized) || normalized.length === 0) {
         throw new Error('Resposta da API sem dados utilizáveis');
       }
@@ -212,8 +216,12 @@ export function ReportsSection() {
       const raw = await saiposHTTP.getDailyReport(dateStr, targetApi.apiKey as string, targetApi.id);
       console.log('📦 Dados brutos recebidos (daily):', raw);
       
-      // Verificar se a resposta é null ou array vazio
-      if (raw === null || raw === undefined || (Array.isArray(raw) && raw.length === 0)) {
+      // Normalizar os dados primeiro
+      const normalized = normalizeDailyResponse(raw);
+      console.log('✅ Dados normalizados (daily):', normalized);
+      
+      // Verificar se retornou dados válidos
+      if (!normalized || normalized.totalOrders === 0) {
         console.log(`⚠️ Nenhuma venda encontrada para ${dateStr}`);
         setDailyData(null);
         
@@ -234,9 +242,6 @@ export function ReportsSection() {
         });
         return;
       }
-      
-      const normalized = normalizeDailyResponse(raw);
-      console.log('✅ Dados normalizados (daily):', normalized);
       
       setDailyData(normalized);
       setErrorMsg(null); // Limpar erro se houver sucesso
