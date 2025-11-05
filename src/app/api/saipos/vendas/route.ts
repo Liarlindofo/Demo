@@ -2,6 +2,22 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+// Tipo para dados de venda da API Saipos
+interface SaiposSale {
+  id_sale?: string | number;
+  id?: string | number;
+  numero?: string | number;
+  shift_date?: string;
+  sale_date?: string;
+  created_at?: string;
+  date?: string;
+  opened_at?: string;
+  nfce?: {
+    numero?: string | number;
+  };
+  [key: string]: unknown;
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -148,10 +164,10 @@ export async function GET(request: Request) {
       // Extrair array de vendas
       const pageArray = Array.isArray(pageData)
         ? pageData
-        : Array.isArray((pageData as any)?.data)
-        ? (pageData as any).data
-        : Array.isArray((pageData as any)?.items)
-        ? (pageData as any).items
+        : Array.isArray((pageData as Record<string, unknown>)?.data)
+        ? (pageData as { data: unknown[] }).data
+        : Array.isArray((pageData as Record<string, unknown>)?.items)
+        ? (pageData as { items: unknown[] }).items
         : [];
 
       if (pageArray.length === 0 || pageData === null || pageData === undefined) {
@@ -236,9 +252,10 @@ export async function GET(request: Request) {
     
     // Filtrar vendas pelo período solicitado no servidor antes de retornar
     // IMPORTANTE: Verificar qual campo de data está sendo usado
-    const filteredSales = allSales.filter((sale: any) => {
+    const filteredSales = allSales.filter((sale: unknown) => {
+      const saleObj = sale as SaiposSale;
       // Tentar diferentes campos de data
-      const saleDate = sale.shift_date || sale.sale_date || sale.created_at || sale.date || sale.opened_at;
+      const saleDate = saleObj.shift_date || saleObj.sale_date || saleObj.created_at || saleObj.date || saleObj.opened_at;
       
       if (!saleDate) {
         console.warn(`⚠️ Venda sem data encontrada:`, JSON.stringify(sale).substring(0, 200));
@@ -262,19 +279,20 @@ export async function GET(request: Request) {
     if (filteredSales.length > 0) {
       console.log("Primeira venda (sample):", JSON.stringify(filteredSales[0]).substring(0, 300));
       // Verificar datas das vendas para debug
-      const dates = filteredSales.map((s: any) => {
-        const sale = s as any;
+      const dates = filteredSales.map((s: unknown) => {
+        const sale = s as SaiposSale;
         const date = sale.shift_date || sale.created_at || sale.date || 'sem data';
-        return date.split('T')[0];
+        return typeof date === 'string' ? date.split('T')[0] : 'sem data';
       });
       const uniqueDates = [...new Set(dates)].sort();
       console.log(`📅 Datas únicas encontradas (${uniqueDates.length}):`, uniqueDates);
       
       // Contar vendas por data
       const salesCountByDate: Record<string, number> = {};
-      filteredSales.forEach((sale: any) => {
-        const date = (sale.shift_date || sale.created_at || sale.date || '').split('T')[0];
-        if (date) {
+      filteredSales.forEach((sale: unknown) => {
+        const saleObj = sale as SaiposSale;
+        const date = (saleObj.shift_date || saleObj.created_at || saleObj.date || '').split('T')[0];
+        if (date && date !== 'sem data') {
           salesCountByDate[date] = (salesCountByDate[date] || 0) + 1;
         }
       });
@@ -282,10 +300,10 @@ export async function GET(request: Request) {
     } else {
       console.warn(`⚠️ Nenhuma venda encontrada no período ${startDateOnly} a ${endDateOnly}`);
       if (allSales.length > 0) {
-        const dates = allSales.map((s: any) => {
-          const sale = s as any;
+        const dates = allSales.map((s: unknown) => {
+          const sale = s as SaiposSale;
           const date = sale.shift_date || sale.created_at || sale.date || 'sem data';
-          return date.split('T')[0];
+          return typeof date === 'string' ? date.split('T')[0] : 'sem data';
         });
         const uniqueDates = [...new Set(dates)].sort();
         console.log(`⚠️ Mas encontramos vendas com datas:`, uniqueDates);

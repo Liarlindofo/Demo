@@ -65,17 +65,6 @@ export function ReportsSection() {
     return new Date().toISOString().split("T")[0];
   };
 
-  // Converter data local (YYYY-MM-DD) para intervalo considerando 17:00–23:30 BR (-03:00)
-  const formatSaiposDate = useCallback((date: Date): string => {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const yyyy = date.getFullYear();
-    const mm = pad(date.getMonth() + 1);
-    const dd = pad(date.getDate());
-    const hh = pad(date.getHours());
-    const min = pad(date.getMinutes());
-    const ss = pad(date.getSeconds());
-    return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}-03:00`;
-  }, []);
 
   const getSaiposRange = useCallback((dateString: string): { start: string; end: string } => {
     // start = dataInicial + T17:00:00-03:00
@@ -282,8 +271,9 @@ export function ReportsSection() {
     }
   }, [dateStart, dateEnd, selectedStore, addToast, connectedAPIs, updateDashboardData, getSaiposRange]);
 
-  // 🔹 Carregar dados diários
-  const loadDailyData = async (date: Date) => {
+  // 🔹 Carregar dados diários (DESABILITADO - causa requisições simultâneas)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _loadDailyData = async (date: Date) => {
     try {
       const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
       if (saiposApis.length === 0) {
