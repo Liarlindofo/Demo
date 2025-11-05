@@ -21,6 +21,7 @@ const sampleSaiposResponse = [
     discount_value: 5.00,
     surcharge_value: 2.00,
     total_sale_value: 47.00, // total_items_value - discount_value + surcharge_value
+    total_amount: 47.00, // Campo real da API
     observations: "Cliente pediu sem cebola",
     status: "completed",
     items: [
@@ -88,6 +89,7 @@ const sampleSaiposResponse = [
     discount_value: 0.00,
     surcharge_value: 0.00,
     total_sale_value: 25.00,
+    total_amount: 25.00, // Campo real da API
     status: "completed",
     items: [
       {
@@ -121,6 +123,7 @@ const sampleSaiposResponse = [
     discount_value: 8.00,
     surcharge_value: 0.00,
     total_sale_value: 72.00,
+    total_amount: 72.00, // Campo real da API
     status: "completed",
     items: [
       {

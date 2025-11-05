@@ -630,6 +630,12 @@ function toNumberVal(value: unknown, fallback = 0): number {
   return fallback;
 }
 
+// Helper para pegar valor total da venda (suporta ambos os nomes de campo)
+function getTotalSaleValue(sale: JsonObject): number {
+  // A API pode retornar total_amount OU total_sale_value
+  return toNumberVal(sale.total_amount || sale.total_sale_value);
+}
+
 export function normalizeStoresResponse(apiJson: unknown): SaiposStore[] {
   try {
     const root = (apiJson ?? {}) as JsonObject;
@@ -695,8 +701,8 @@ export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
       const hallSales = sales.filter(s => toNumberVal(s.id_sale_type) === 3);
       const ticketSales = sales.filter(s => toNumberVal(s.id_sale_type) === 4);
 
-      // Calcular valores totais usando total_sale_value (já inclui descontos e acréscimos)
-      const totalRevenue = sales.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0);
+      // Calcular valores totais usando total_amount ou total_sale_value (já inclui descontos e acréscimos)
+      const totalRevenue = sales.reduce((sum, s) => sum + getTotalSaleValue(s), 0);
       const totalOrders = sales.length;
       const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
@@ -757,10 +763,10 @@ export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
         averageTicket: averageTicket,
         uniqueCustomers: uniqueCustomers,
         totalRevenue: totalRevenue,
-        deliverySales: deliverySales.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0),
-        counterSales: counterSales.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0),
-        hallSales: hallSales.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0),
-        ticketSales: ticketSales.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0),
+        deliverySales: deliverySales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+        counterSales: counterSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+        hallSales: hallSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+        ticketSales: ticketSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
         ordersByChannel: {
           delivery: deliverySales.length,
           counter: counterSales.length,
@@ -838,6 +844,7 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
 
     console.log('🔍 DEBUG - Primeira venda:', JSON.stringify(firstSale).substring(0, 300));
     console.log('🔍 DEBUG - Campos disponíveis na venda:', Object.keys(firstSale));
+    console.log('🔍 DEBUG - total_amount:', firstSale.total_amount);
     console.log('🔍 DEBUG - total_sale_value:', firstSale.total_sale_value);
     console.log('🔍 DEBUG - id_sale_type:', firstSale.id_sale_type);
 
@@ -848,8 +855,8 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
     const hallSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 3);
     const ticketSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 4);
 
-    // Calcular valores totais usando total_sale_value (já inclui descontos e acréscimos)
-    const totalRevenue = salesArray.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0);
+    // Calcular valores totais usando total_amount ou total_sale_value (já inclui descontos e acréscimos)
+    const totalRevenue = salesArray.reduce((sum, s) => sum + getTotalSaleValue(s), 0);
     const totalOrders = salesArray.length;
     const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
@@ -918,10 +925,10 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
       averageTicket: averageTicket,
       uniqueCustomers: uniqueCustomers,
       totalRevenue: totalRevenue,
-      deliverySales: deliverySales.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0),
-      counterSales: counterSales.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0),
-      hallSales: hallSales.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0),
-      ticketSales: ticketSales.reduce((sum, s) => sum + toNumberVal(s.total_sale_value), 0),
+      deliverySales: deliverySales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+      counterSales: counterSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+      hallSales: hallSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+      ticketSales: ticketSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
       ordersByChannel: {
         delivery: deliverySales.length,
         counter: counterSales.length,
