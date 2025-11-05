@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db"; // ajuste se seu prisma estiver em outro caminho
+import { PrismaClient } from "@prisma/client";
+const prisma = new PrismaClient();
 
 export async function GET(request: Request) {
   try {
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
     }
 
     // 🔥 Busca o token da Saipos da loja certa
-    const saiposAPI = await db.userAPI.findUnique({
+    const saiposAPI = await prisma.userAPI.findUnique({
       where: { id: apiId },
     });
 
