@@ -62,91 +62,37 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fazer requisição para a API da Saipos pelo servidor (sem CORS)
-    // Implementar paginação para buscar TODAS as vendas
-    // Se data_inicial e data_final já vierem com horas, usar diretamente
-    // Caso contrário, adicionar horas padrão
+    // Construir URL única da Saipos Data API (sale_date + store_id + limit)
     const startDateTime = data_inicial.includes('T') ? data_inicial : `${data_inicial}T00:00:00`
     const endDateTime = data_final.includes('T') ? data_final : `${data_final}T23:59:59`
-    const token = targetApi.apiKey.trim().replace(/^Bearer\s+/i, '')
-    
-    const allSales: unknown[] = []
-    let offset = 0
-    const limit = 300
-    let hasMoreData = true
-    
-    console.log('🔄 Iniciando busca paginada de vendas para:', data_inicial, 'até', data_final)
-    
-    let lastUrl = ''
-    while (hasMoreData) {
-      const storeIdQuery = storeId ? `&store_id=${encodeURIComponent(storeId)}` : ''
-      const url = `https://data.saipos.io/v1/search_sales?p_date_column_filter=sale_date&p_filter_date_start=${encodeURIComponent(startDateTime)}&p_filter_date_end=${encodeURIComponent(endDateTime)}${storeIdQuery}&p_limit=${limit}&p_offset=${offset}`
-      lastUrl = url
-      
-      console.log(`📥 Buscando vendas: offset=${offset}, limit=${limit}`)
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store',
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Erro desconhecido')
-        console.error('Erro na API Saipos:', response.status, errorText)
-        return NextResponse.json(
-          { data: [], meta: { status: response.status, url: lastUrl, error: response.statusText } },
-          { status: response.status }
-        )
-      }
-
-      const data = await response.json()
-      
-      // Verificar se retornou dados
-      if (!data || (Array.isArray(data) && data.length === 0)) {
-        hasMoreData = false
-        break
-      }
-      
-      // Adicionar dados ao array total
-      if (Array.isArray(data)) {
-        allSales.push(...data)
-        console.log(`✅ Página carregada: ${data.length} vendas (total: ${allSales.length})`)
-        
-        // Se retornou menos que o limite, não há mais páginas
-        if (data.length < limit) {
-          hasMoreData = false
-        } else {
-          offset += limit
-        }
-      } else {
-        // Se não é array, retornar como está (pode ser erro ou estrutura diferente)
-        console.log('⚠️ Resposta não é array, normalizando para envelope com data=[]')
-        return NextResponse.json(
-          { data: [], meta: { status: 200, url: lastUrl } },
-          { status: 200 }
-        )
-      }
+    if (!storeId) {
+      return NextResponse.json(
+        { data: [], meta: { status: 400, error: 'storeId é obrigatório' } },
+        { status: 400 }
+      )
     }
-    
-    console.log(`📊 Total de vendas carregadas: ${allSales.length}`)
-    
-    // Log detalhado do que foi retornado da API
-    console.log('📡 Resposta da API Saipos (vendas):', {
-      status: 200,
-      dataType: 'array',
-      dataLength: allSales.length,
-      firstItem: allSales.length > 0 ? allSales[0] : null,
-      pages: Math.ceil(allSales.length / limit),
+
+    const token = targetApi.apiKey.trim().replace(/^Bearer\s+/i, '')
+    const start = encodeURIComponent(startDateTime)
+    const end = encodeURIComponent(endDateTime)
+    const url = `https://data.saipos.io/v1/search_sales?p_date_column_filter=sale_date&p_filter_date_start=${start}&p_filter_date_end=${end}&store_id=${encodeURIComponent(storeId)}&limit=500`
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
     })
-    
+
+    const json = await response.json().catch(() => ([]))
+    const data = Array.isArray(json) ? json : (json?.data ?? json?.items ?? [])
+
     return NextResponse.json(
-      { data: allSales, meta: { status: 200, url: lastUrl } },
-      { status: 200 }
+      { data, meta: { status: response.status, url } },
+      { status: response.ok ? 200 : response.status }
     )
   } catch (error: unknown) {
     console.error('Erro ao buscar dados de vendas:', error)
