@@ -40,6 +40,35 @@ export async function POST(request: NextRequest) {
     }
 
     const api = await UserAPIService.testAndUpdateAPI(apiId)
+    
+    // Se a API foi conectada com sucesso e é Saipos, fazer carregamento inicial de 90 dias
+    if (api.status === 'connected' && api.type === 'saipos') {
+      // Verificar se já existem dados no cache para esta loja
+      const { db } = await import('@/lib/db')
+      const storeId = api.name
+      const existingData = await db.salesDaily.findFirst({
+        where: { storeId },
+      })
+      
+      // Se não houver dados, fazer carregamento inicial em background (não bloquear resposta)
+      if (!existingData) {
+        console.log(`🔄 Iniciando carregamento inicial de 90 dias para ${storeId}...`)
+        // Fazer em background sem bloquear a resposta
+        fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/saipos/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiId: api.id,
+            storeId: storeId,
+            initialLoad: true,
+          }),
+        }).catch(err => {
+          console.error('Erro ao iniciar carregamento inicial:', err)
+          // Não propagar erro - é em background
+        })
+      }
+    }
+    
     return NextResponse.json({ api })
   } catch (error: unknown) {
     console.error('Erro ao testar API:', error)

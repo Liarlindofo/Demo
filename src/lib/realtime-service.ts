@@ -231,7 +231,7 @@ class RealtimeService {
 
 // Instância global do serviço
 export const realtimeService = new RealtimeService({
-  baseUrl: process.env.NEXT_PUBLIC_SAIPOS_BASE_URL || 'https://api.saipos.com',
+  baseUrl: process.env.NEXT_PUBLIC_SAIPOS_BASE_URL || 'https://data.saipos.io/v1',
   apiKey: process.env.NEXT_PUBLIC_SAIPOS_API_KEY || '',
 });
 

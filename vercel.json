@@ -4,5 +4,15 @@
   "framework": "nextjs",
   "env": {
     "PRISMA_GENERATE_DATAPROXY": "false"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/sync-saipos",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-sales",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }

@@ -33,7 +33,7 @@ import {
   Bar
 } from "recharts";
 import { useApp } from "@/contexts/app-context";
-import { saiposHTTP, SaiposSalesData, normalizeSalesResponse, normalizeDailyResponse } from "@/lib/saipos-api";
+import { SaiposSalesData } from "@/lib/saipos-api";
 import { realtimeService, RealtimeUpdate } from "@/lib/realtime-service";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -53,6 +53,22 @@ export function ReportsSection() {
     connectedAPIs
   } = useApp();
 
+  // Função para calcular datas subtraindo dias
+  const subtractDays = (days: number): string => {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return date.toISOString().split("T")[0];
+  };
+
+  // Função para obter data de hoje no formato YYYY-MM-DD
+  const getToday = (): string => {
+    return new Date().toISOString().split("T")[0];
+  };
+
+  // Estados para datas inicial e final
+  const [dateStart, setDateStart] = useState<string>(getToday());
+  const [dateEnd, setDateEnd] = useState<string>(getToday());
+
   const [salesData, setSalesData] = useState<SaiposSalesData[]>([]);
   const [dailyData, setDailyData] = useState<SaiposSalesData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -62,6 +78,30 @@ export function ReportsSection() {
 
   const handlePeriodChange = (period: string) => {
     setSelectedPeriod(period);
+    const hoje = getToday();
+    
+    switch (period) {
+      case "1d":
+        setDateStart(hoje);
+        setDateEnd(hoje);
+        break;
+      case "7d":
+        setDateStart(subtractDays(7));
+        setDateEnd(hoje);
+        break;
+      case "30d":
+        setDateStart(subtractDays(30));
+        setDateEnd(hoje);
+        break;
+      case "90d":
+        setDateStart(subtractDays(90));
+        setDateEnd(hoje);
+        break;
+      default:
+        setDateStart(subtractDays(30));
+        setDateEnd(hoje);
+    }
+    
     addToast(`Período alterado para ${period}`, "info");
   };
 
@@ -71,122 +111,163 @@ export function ReportsSection() {
       const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
       if (saiposApis.length > 0) {
         addToast(`Data alterada para ${date.toLocaleDateString("pt-BR")}`, "info");
-        loadDailyData(date);
+        // DESABILITADO: loadDailyData causa requisições simultâneas e rate limiting
+        // Os dados já são carregados via loadSalesData que busca todas as vendas
+        // loadDailyData(date);
       } else {
         addToast('Conecte uma API Saipos para visualizar relatórios diários', "info");
       }
     }
   };
 
-  // 🔹 Carregar dados da API Saipos
+  // 🔹 Carregar dados do cache local usando a nova rota /api/dashboard/sales
   const loadSalesData = useCallback(async () => {
     setIsLoading(true);
     try {
       setErrorMsg(null);
-      const endDate = new Date();
-      const startDate = new Date();
 
-      switch (selectedPeriod) {
-        case "7d":
-          startDate.setDate(endDate.getDate() - 7);
-          break;
-        case "30d":
-          startDate.setDate(endDate.getDate() - 30);
-          break;
-        case "90d":
-          startDate.setDate(endDate.getDate() - 90);
-          break;
-        case "1d":
-          startDate.setDate(endDate.getDate() - 1);
-          break;
-        default:
-          startDate.setDate(endDate.getDate() - 30);
-      }
-
-      // Obter token da API conectada (da loja selecionada ou primeira conectada)
+      // Obter storeId da loja selecionada ou primeira conectada
       const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
       if (saiposApis.length === 0) throw new Error('Nenhuma API Saipos conectada');
       const targetApi = selectedStore?.apiId
         ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
 
-      const raw = await saiposHTTP.getSalesData(
-        startDate.toISOString().split("T")[0],
-        endDate.toISOString().split("T")[0],
-        targetApi.apiKey as string
-      );
+      const storeId = targetApi.name; // Usar name como storeId
 
-      const normalized = normalizeSalesResponse(raw);
-      if (!Array.isArray(normalized) || normalized.length === 0) {
-        throw new Error('Resposta da API sem dados utilizáveis');
+      // Calcular range baseado no período selecionado
+      const startDate = new Date(dateStart);
+      const endDate = new Date(dateEnd);
+      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      
+      let range: string;
+      if (daysDiff <= 1) range = '1d';
+      else if (daysDiff <= 7) range = '7d';
+      else if (daysDiff <= 30) range = '30d';
+      else range = '90d';
+
+      console.log("📊 Carregando dados do cache local - storeId:", storeId, "range:", range, "período:", dateStart, "a", dateEnd);
+
+      const res = await fetch(`/api/dashboard/sales?storeId=${encodeURIComponent(storeId)}&range=${range}`, {
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        throw new Error(`Erro ao buscar dados: ${res.status}`);
       }
 
+      const resp = await res.json();
+      console.log('📦 Dados recebidos do cache:', resp);
+
+      const vendas = Array.isArray(resp?.data) ? resp.data : [];
+
+      if (vendas.length === 0) {
+        console.log('⚠️ Nenhuma venda encontrada no cache para o período');
+        setSalesData([]);
+        updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
+        addToast('Sem vendas no período selecionado', 'info');
+        return;
+      }
+
+      // Filtrar apenas vendas do período selecionado (dateStart a dateEnd)
+      const startDateOnly = dateStart.split('T')[0];
+      const endDateOnly = dateEnd.split('T')[0];
+      
+      const filteredByPeriod = vendas.filter((item: { date: string }) => {
+        const itemDate = item.date?.split('T')[0] || item.date;
+        return itemDate >= startDateOnly && itemDate <= endDateOnly;
+      });
+
+      // Converter para formato esperado pelo componente
+      const normalized = filteredByPeriod.map((item: {
+        date: string;
+        totalSales: number;
+        totalOrders: number;
+        averageTicket: number;
+        uniqueCustomers: number;
+        channels: any;
+      }) => ({
+        date: item.date,
+        totalSales: item.totalSales,
+        totalOrders: item.totalOrders,
+        averageTicket: item.averageTicket,
+        uniqueCustomers: item.uniqueCustomers,
+        totalRevenue: item.totalSales,
+        salesByOrigin: item.channels?.salesByOrigin || [],
+        ordersByChannel: item.channels?.ordersByChannel || { delivery: 0, counter: 0, hall: 0, ticket: 0 },
+        topProducts: [],
+      }));
+
       setSalesData(normalized);
-      addToast("Dados atualizados com sucesso!", "success");
+      
+      console.log(`📅 Período selecionado: ${startDateOnly} a ${endDateOnly}`);
+      console.log(`📅 Vendas encontradas no cache: ${vendas.length}`);
+      console.log(`📅 Vendas filtradas pelo período: ${filteredByPeriod.length}`);
+      
+      // Atualizar dashboard com os dados agregados APENAS do período selecionado
+      if (filteredByPeriod.length > 0) {
+        const totals = filteredByPeriod.reduce((acc: any, item: any) => ({
+          totalSales: acc.totalSales + (item.totalSales || 0),
+          totalOrders: acc.totalOrders + (item.totalOrders || 0),
+          uniqueCustomers: acc.uniqueCustomers + (item.uniqueCustomers || 0),
+        }), { totalSales: 0, totalOrders: 0, uniqueCustomers: 0 });
+
+        const averageTicket = totals.totalOrders > 0 
+          ? totals.totalSales / totals.totalOrders 
+          : 0;
+
+        updateDashboardData({
+          totalSales: totals.totalSales,
+          totalOrders: totals.totalOrders,
+          averageTicket: averageTicket,
+          uniqueCustomers: totals.uniqueCustomers,
+        });
+      } else {
+        // Usar summary da resposta se não houver dados filtrados
+        if (resp.summary) {
+          updateDashboardData({
+            totalSales: resp.summary.totalSales || 0,
+            totalOrders: resp.summary.totalOrders || 0,
+            averageTicket: resp.summary.averageTicket || 0,
+            uniqueCustomers: resp.summary.uniqueCustomers || 0,
+          });
+        }
+      }
+
+      addToast("Dados carregados do cache local!", "success");
     } catch (error) {
-      console.error("Erro ao carregar dados:", error);
-      addToast("Erro ao carregar dados da Saipos", "error");
-      setErrorMsg("Erro ao conectar à Saipos");
+      console.error("=== ERRO AO CARREGAR DADOS DO CACHE ===");
+      console.error("Erro completo:", error);
+      console.error("Erro message:", error instanceof Error ? error.message : String(error));
+      addToast("Erro ao carregar dados do cache", "error");
+      setErrorMsg(error instanceof Error ? error.message : "Erro ao carregar dados");
       setSalesData([]);
+      updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPeriod, selectedStore, addToast, connectedAPIs]);
+  }, [dateStart, dateEnd, selectedStore, addToast, connectedAPIs, updateDashboardData]);
 
-  // 🔹 Carregar dados diários
-  const loadDailyData = async (date: Date) => {
-    try {
-      const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
-      if (saiposApis.length === 0) {
-        setDailyData(null);
-        return; // Silenciosamente retorna se não há APIs conectadas
-      }
-      const targetApi = selectedStore?.apiId
-        ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
-        : saiposApis[0];
+  // 🔹 Carregar dados diários (DESABILITADO - não usado mais, dados vêm do cache)
+  // Função removida - agora usamos apenas loadSalesData que busca do cache local
 
-      const raw = await saiposHTTP.getDailyReport(date.toISOString().split("T")[0], targetApi.apiKey as string);
-      const normalized = normalizeDailyResponse(raw);
-      setDailyData(normalized);
-    } catch (error) {
-      console.error("Erro ao carregar dados diários:", error);
-      setDailyData(null);
-      // Não mostrar erro se for apenas falta de APIs conectadas
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      if (!errorMsg.includes('Nenhuma API Saipos conectada')) {
-        setErrorMsg((prev) => prev || "Erro ao conectar à Saipos");
-      }
-    }
-  };
-
-  // 🔹 Efeito para carregar dados
+  // 🔹 Efeito para carregar dados quando as datas ou loja mudarem
   useEffect(() => {
     if (selectedStore) {
       loadSalesData();
-      const initialData = {
-        totalSales: Math.floor(Math.random() * 2000) + 1000,
-        totalOrders: Math.floor(Math.random() * 50) + 20,
-        averageTicket: Math.floor(Math.random() * 30) + 20,
-        uniqueCustomers: Math.floor(Math.random() * 30) + 10,
-        isSyncing: false
-      };
-      updateDashboardData(initialData);
     }
-  }, [selectedPeriod, selectedStore, loadSalesData, updateDashboardData]);
+  }, [dateStart, dateEnd, selectedStore, loadSalesData]);
 
-  // 🔹 Efeito para carregar relatórios diários
+  // 🔹 Efeito para inicializar datas quando o componente montar
   useEffect(() => {
-    if (!salesData.length) return;
+    const hoje = getToday();
+    setDateStart(hoje);
+    setDateEnd(hoje);
+  }, []);
 
-    const last = salesData[salesData.length - 1];
-    updateDashboardData({
-      totalSales: last.totalSales,
-      totalOrders: last.totalOrders,
-      averageTicket: last.averageTicket,
-      uniqueCustomers: last.uniqueCustomers,
-      isSyncing: false
-    });
-  }, [salesData, updateDashboardData]);
 
 
   // 🔹 Configurar atualizações em tempo real
@@ -210,26 +291,91 @@ export function ReportsSection() {
       setTimeout(() => updateDashboardData({ isSyncing: false }), 2000);
     });
 
-    // Iniciar polling a cada 60s usando token da API
+    // Iniciar polling a cada 60s usando cache local
     const saiposApis = connectedAPIs.filter(api => api.type === 'saipos' && api.status === 'connected' && api.apiKey);
-    const targetApi = saiposApis[0];
+    const targetApi = selectedStore?.apiId
+      ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
+      : saiposApis[0];
     if (targetApi && selectedStore) {
       realtimeService.startPolling(async () => {
         try {
-          const today = new Date().toISOString().split('T')[0];
-          const daily = await saiposHTTP.getDailyReport(today, targetApi.apiKey as string);
+          const storeId = targetApi.name;
+          
+          // Calcular range baseado no período selecionado
+          const startDate = new Date(dateStart);
+          const endDate = new Date(dateEnd);
+          const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          
+          let range: string;
+          if (daysDiff <= 1) range = '1d';
+          else if (daysDiff <= 7) range = '7d';
+          else if (daysDiff <= 30) range = '30d';
+          else range = '90d';
+
+          const res = await fetch(`/api/dashboard/sales?storeId=${encodeURIComponent(storeId)}&range=${range}`, {
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+          });
+
+          if (!res.ok) {
+            throw new Error(`Erro ao buscar dados: ${res.status}`);
+          }
+
+          const resp = await res.json();
+          const vendas = Array.isArray(resp?.data) ? resp.data : [];
+          
+          if (vendas.length === 0) {
+            // Não altere os números atuais se não houver dados
+            return {
+              storeId: selectedStore.id,
+              type: 'sales',
+              data: {
+                totalSales: dashboardData.totalSales,
+                totalOrders: dashboardData.totalOrders,
+                averageTicket: dashboardData.averageTicket,
+              },
+              timestamp: new Date().toISOString(),
+            } as RealtimeUpdate;
+          }
+
+          // Filtrar pelo período selecionado
+          const startDateOnly = dateStart.split('T')[0];
+          const endDateOnly = dateEnd.split('T')[0];
+          const filteredByPeriod = vendas.filter((item: { date: string }) => {
+            const itemDate = item.date?.split('T')[0] || item.date;
+            return itemDate >= startDateOnly && itemDate <= endDateOnly;
+          });
+
+          const totals = filteredByPeriod.reduce((acc: any, item: any) => ({
+            totalSales: acc.totalSales + (item.totalSales || 0),
+            totalOrders: acc.totalOrders + (item.totalOrders || 0),
+            uniqueCustomers: acc.uniqueCustomers + (item.uniqueCustomers || 0),
+          }), { totalSales: 0, totalOrders: 0, uniqueCustomers: 0 });
+          
+          const averageTicket = totals.totalOrders > 0 ? totals.totalSales / totals.totalOrders : 0;
+
           return {
             storeId: selectedStore.id,
             type: 'sales',
-            data: { totalSales: daily.totalSales },
+            data: { 
+              totalSales: totals.totalSales, 
+              totalOrders: totals.totalOrders, 
+              averageTicket,
+              uniqueCustomers: totals.uniqueCustomers,
+            },
             timestamp: new Date().toISOString(),
           } as RealtimeUpdate;
         } catch (error) {
-          console.error('Erro no polling de dados diários:', error);
+          console.error('Erro no polling de dados de vendas:', error);
+          // Não zerar: manter números atuais
           return {
             storeId: selectedStore.id,
             type: 'sales',
-            data: { totalSales: 0 },
+            data: {
+              totalSales: dashboardData.totalSales,
+              totalOrders: dashboardData.totalOrders,
+              averageTicket: dashboardData.averageTicket,
+            },
             timestamp: new Date().toISOString(),
           } as RealtimeUpdate;
         }
@@ -240,7 +386,7 @@ export function ReportsSection() {
       realtimeService.unsubscribe(listenerId);
       realtimeService.stopPolling();
     };
-  }, [selectedStore, updateDashboardData, connectedAPIs]);
+  }, [selectedStore, updateDashboardData, connectedAPIs, dateStart, dateEnd, dashboardData.totalSales, dashboardData.totalOrders, dashboardData.averageTicket]);
 
   // ✅ Memo para evitar loop infinito
   const chartData = useMemo(() => {
@@ -305,23 +451,83 @@ export function ReportsSection() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
+          {/* Seletores de Data */}
+          <div className="flex gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-400">Data Inicial</label>
+              <input
+                type="date"
+                value={dateStart}
+                onChange={(e) => {
+                  setDateStart(e.target.value);
+                }}
+                className="px-3 py-2 bg-[#141415] border border-[#374151] rounded-md text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#001F05]"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-400">Data Final</label>
+              <input
+                type="date"
+                value={dateEnd}
+                onChange={(e) => {
+                  setDateEnd(e.target.value);
+                }}
+                className="px-3 py-2 bg-[#141415] border border-[#374151] rounded-md text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#001F05]"
+              />
+            </div>
+          </div>
+
+          {/* Botões de Filtro Rápido */}
           <div className="flex bg-[#141415] rounded-lg p-1">
-            {["1d", "7d", "30d", "90d"].map((period) => (
-              <Button
-                key={period}
-                variant={selectedPeriod === period ? "default" : "ghost"}
-                size="sm"
-                onClick={() => handlePeriodChange(period)}
-                className={`${
-                  selectedPeriod === period
-                    ? "bg-[#001F05] text-white"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                {period}
-              </Button>
-            ))}
+            <Button
+              variant={selectedPeriod === "1d" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handlePeriodChange("1d")}
+              className={`${
+                selectedPeriod === "1d"
+                  ? "bg-[#001F05] text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              1D
+            </Button>
+            <Button
+              variant={selectedPeriod === "7d" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handlePeriodChange("7d")}
+              className={`${
+                selectedPeriod === "7d"
+                  ? "bg-[#001F05] text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              7D
+            </Button>
+            <Button
+              variant={selectedPeriod === "30d" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handlePeriodChange("30d")}
+              className={`${
+                selectedPeriod === "30d"
+                  ? "bg-[#001F05] text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              30D
+            </Button>
+            <Button
+              variant={selectedPeriod === "90d" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handlePeriodChange("90d")}
+              className={`${
+                selectedPeriod === "90d"
+                  ? "bg-[#001F05] text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              90D
+            </Button>
           </div>
 
           <Dialog open={waOpen} onOpenChange={setWaOpen}>
@@ -355,18 +561,14 @@ export function ReportsSection() {
               <DialogFooter>
                 <Button
                   onClick={() => {
-                    const end = new Date();
-                    const start = new Date();
-                    if (selectedPeriod === '7d') start.setDate(end.getDate() - 7);
-                    else if (selectedPeriod === '30d') start.setDate(end.getDate() - 30);
-                    else if (selectedPeriod === '90d') start.setDate(end.getDate() - 90);
-                    else start.setDate(end.getDate() - 1);
-                    const last = salesData[salesData.length - 1];
+                    const startDate = new Date(dateStart);
+                    const endDate = new Date(dateEnd);
                     const msg = `Relatório ${selectedStore ? selectedStore.name : ''} (${selectedPeriod})\n` +
-                      `Período: ${start.toLocaleDateString('pt-BR')} a ${end.toLocaleDateString('pt-BR')}\n` +
-                      `Vendas: R$ ${last?.totalSales?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n` +
-                      `Pedidos: ${last?.totalOrders}\n` +
-                      `Ticket médio: R$ ${last?.averageTicket?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                      `Período: ${startDate.toLocaleDateString('pt-BR')} a ${endDate.toLocaleDateString('pt-BR')}\n` +
+                      `Vendas: R$ ${dashboardData.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n` +
+                      `Pedidos: ${dashboardData.totalOrders}\n` +
+                      `Ticket médio: R$ ${dashboardData.averageTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n` +
+                      `Clientes únicos: ${dashboardData.uniqueCustomers}`;
                     const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
                     if (typeof window !== 'undefined') window.open(url, '_blank');
                   }}
@@ -464,6 +666,54 @@ export function ReportsSection() {
           </Card>
         ))}
       </div>
+
+      {/* 🔹 Breakdown por Canal/Origem */}
+      {dailyData && dailyData.salesByOrigin && dailyData.salesByOrigin.length > 0 && (
+        <Card className="bg-[#141415] border-[#374151]">
+          <CardHeader>
+            <CardTitle className="text-white">📊 Vendas por Canal</CardTitle>
+            <CardDescription className="text-gray-400">
+              Breakdown de vendas por origem (iFood, Telefone, Delivery Direto, etc.)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {dailyData.salesByOrigin.map((channel, index) => (
+                <div
+                  key={index}
+                  className="bg-[#0f0f10] p-4 rounded-lg border border-[#374151] hover:border-[#001F05] transition-colors"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <p className="text-white font-semibold text-lg">{channel.origin}</p>
+                    <span className="text-xs text-gray-500 bg-[#374151] px-2 py-1 rounded">
+                      #{index + 1}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-gray-400 text-sm">
+                      Pedidos: <span className="text-white font-medium">{channel.quantity}</span>
+                    </p>
+                    <p className="text-gray-400 text-sm">
+                      Receita: <span className="text-green-400 font-bold">R$ {channel.revenue.toFixed(2)}</span>
+                    </p>
+                    {channel.quantity > 0 && (
+                      <p className="text-gray-500 text-xs">
+                        Ticket médio: R$ {(channel.revenue / channel.quantity).toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-[#374151]">
+              <p className="text-gray-400 text-sm text-center">
+                Total: <span className="text-white font-bold">{dailyData.salesByOrigin.reduce((sum, c) => sum + c.quantity, 0)} pedidos</span> | 
+                <span className="text-green-400 font-bold ml-1">R$ {dailyData.salesByOrigin.reduce((sum, c) => sum + c.revenue, 0).toFixed(2)}</span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 🔹 Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

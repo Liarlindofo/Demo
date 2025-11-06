@@ -49,13 +49,18 @@ export class UserAPIService {
         }
       }
 
+      // Para APIs Saipos, sempre usar URL fixa
+      const finalBaseUrl = data.type === 'saipos' 
+        ? 'https://data.saipos.io/v1'
+        : (data.baseUrl || 'https://data.saipos.io/v1')
+
       const api = await prisma.userAPI.create({
         data: {
           userId: data.userId,
           name: data.name,
           type: data.type,
           apiKey: data.apiKey,
-          baseUrl: data.baseUrl || 'https://api.saipos.com.br/v1',
+          baseUrl: finalBaseUrl,
           status: 'disconnected'
         }
       })
@@ -87,10 +92,21 @@ export class UserAPIService {
   // Atualizar API
   static async updateAPI(apiId: string, data: UpdateUserAPIRequest): Promise<UserAPIConfig> {
     try {
+      // Buscar a API para verificar o tipo
+      const existingAPI = await prisma.userAPI.findUnique({
+        where: { id: apiId }
+      })
+
+      // Se for API Saipos e baseUrl foi enviada, garantir que seja sempre a URL fixa
+      const updateData = { ...data }
+      if (existingAPI?.type === 'saipos' && data.baseUrl !== undefined) {
+        updateData.baseUrl = 'https://data.saipos.io/v1'
+      }
+
       const api = await prisma.userAPI.update({
         where: { id: apiId },
         data: {
-          ...data,
+          ...updateData,
           updatedAt: new Date()
         }
       })
@@ -143,10 +159,15 @@ export class UserAPIService {
       console.log(`📍 URL: ${api.baseUrl}`)
       console.log(`🔑 API Key: ${api.apiKey.substring(0, 12)}...`)
 
+      // Para APIs Saipos, sempre usar URL fixa
+      const finalBaseUrl = api.type === 'saipos' 
+        ? 'https://data.saipos.io/v1'
+        : (api.baseUrl || 'https://data.saipos.io/v1')
+
       // Teste REAL: tentar buscar lojas com o token
       const client = new SaiposAPIService({ 
         apiKey: api.apiKey, 
-        baseUrl: api.baseUrl || 'https://api.saipos.com.br/v1' 
+        baseUrl: finalBaseUrl
       })
       let status: 'connected' | 'error' = 'error'
       let errorMessage: string | null = null

@@ -29,6 +29,12 @@ export interface SaiposSalesData {
     hall: number;
     ticket: number;
   };
+  // Breakdown por canal/origem (iFood, Telefone, Delivery Direto, etc.)
+  salesByOrigin?: Array<{
+    origin: string;
+    quantity: number;
+    revenue: number;
+  }>;
 }
 
 export interface SaiposStore {
@@ -91,26 +97,34 @@ export class SaiposAPIService {
         throw new Error('API Key não configurada');
       }
 
-      const baseUrl = this.config.baseUrl || 'https://api.saipos.com.br/v1';
+      const baseUrl = this.config.baseUrl || 'https://data.saipos.io/v1';
       const token = this.config.apiKey.trim();
       
       // Remover "Bearer " se o usuário colou com o prefixo
       const cleanToken = token.replace(/^Bearer\s+/i, '');
       
       console.log('🔗 Testando conexão real com Saipos...');
-      console.log(`📍 URL: ${baseUrl}/stores`);
+      console.log(`📍 URL: ${baseUrl}/search_sales`);
       
-      // Usar o mesmo endpoint que funciona no saiposHTTP
+      // Usar o endpoint /search_sales para testar a conexão
+      // Criar data de hoje para o teste
+      const today = new Date();
+      const todayISO = today.toISOString().split('T')[0];
+      
       let response: Response;
       try {
         // Adicionar timeout manual para evitar travamentos
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos
         
-        response = await fetch(`${baseUrl}/stores`, {
+        // Usar parâmetros mínimos para testar a conexão
+        const testUrl = `${baseUrl}/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${todayISO}T00:00:00&p_filter_date_end=${todayISO}T23:59:59&p_limit=1&p_offset=0`;
+        
+        response = await fetch(testUrl, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${cleanToken}`,
+            'accept': 'application/json',
             'Content-Type': 'application/json',
             'User-Agent': 'Drin-Platform/1.0',
           },
@@ -128,7 +142,7 @@ export class SaiposAPIService {
           message: networkError,
           name: errorName,
           cause: errorCause,
-          url: `${baseUrl}/stores`
+          url: `${baseUrl}/search_sales`
         });
         
         // Verificar se foi abortado por timeout
@@ -211,11 +225,20 @@ export class SaiposAPIService {
 
       console.log(`📊 Buscando dados reais de vendas da Saipos: ${startDate} até ${endDate}`);
       
-      // Fazer chamada real para a API da Saipos
-      const response = await fetch(`${this.config.baseUrl}/reports/sales?start_date=${startDate}&end_date=${endDate}`, {
+      const token = this.config.apiKey.trim().replace(/^Bearer\s+/i, '');
+      
+      // Converter datas para formato ISO com hora
+      const startDateTime = `${startDate}T00:00:00`;
+      const endDateTime = `${endDate}T23:59:59`;
+      
+      // Usar o endpoint search_sales com parâmetros corretos
+      const url = `${this.config.baseUrl}/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(startDateTime)}&p_filter_date_end=${encodeURIComponent(endDateTime)}&p_limit=300&p_offset=0`;
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
+          'Authorization': `Bearer ${token}`,
+          'accept': 'application/json',
           'Content-Type': 'application/json',
         },
       });
@@ -232,10 +255,7 @@ export class SaiposAPIService {
       return normalized;
     } catch (error) {
       console.error('❌ Erro ao obter dados de vendas:', error);
-      
-      // Em caso de erro, retornar dados mockados para teste
-      console.log('⚠️ Usando dados mockados para teste');
-      return this.getMockSalesData();
+      throw error; // Propagar erro em vez de retornar mock
     }
   }
 
@@ -471,11 +491,20 @@ export class SaiposAPIService {
 
       console.log(`📊 Gerando relatório diário real da Saipos para: ${date}`);
       
-      // Fazer chamada real para a API da Saipos
-      const response = await fetch(`${this.config.baseUrl}/reports/daily?date=${date}`, {
+      const token = this.config.apiKey.trim().replace(/^Bearer\s+/i, '');
+      
+      // Converter data para formato ISO com hora
+      const startDateTime = `${date}T00:00:00`;
+      const endDateTime = `${date}T23:59:59`;
+      
+      // Usar o endpoint search_sales com filtro de data específica
+      const url = `${this.config.baseUrl}/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(startDateTime)}&p_filter_date_end=${encodeURIComponent(endDateTime)}&p_limit=300&p_offset=0`;
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
+          'Authorization': `Bearer ${token}`,
+          'accept': 'application/json',
           'Content-Type': 'application/json',
         },
       });
@@ -521,42 +550,62 @@ export class SaiposAPIService {
 // Instância padrão do serviço (você pode configurar com suas credenciais)
 export const saiposAPI = new SaiposAPIService({
   apiKey: process.env.NEXT_PUBLIC_SAIPOS_API_KEY || '',
-  baseUrl: process.env.NEXT_PUBLIC_SAIPOS_BASE_URL || 'https://api.saipos.com.br/v1',
+  baseUrl: process.env.NEXT_PUBLIC_SAIPOS_BASE_URL || 'https://data.saipos.io/v1',
 });
 
 export default SaiposAPIService;
 
 // ===== Novo wrapper funcional conforme especificação =====
-const BASE_URL = 'https://api.saipos.com.br/v1';
 
 export const saiposHTTP = {
-  async getStores(token: string) {
-    const res = await fetch(`${BASE_URL}/stores`, {
-      headers: { Authorization: `Bearer ${token}` },
+  async getStores() {
+    // Nota: endpoint de lojas pode não existir na API de dados
+    // Retornar array vazio se não houver endpoint específico
+    return [];
+  },
+
+  async getSalesData(startDate: string, endDate: string, _token: string, apiId?: string) {
+    // Usar rota API do Next.js como proxy para evitar CORS
+    const params = new URLSearchParams({
+      startDate,
+      endDate,
+    });
+    if (apiId) {
+      params.append('apiId', apiId);
+    }
+    
+    const res = await fetch(`/api/saipos/sales?${params.toString()}`, {
+      headers: { 
+        'Content-Type': 'application/json'
+      },
       cache: 'no-store',
     });
-    if (!res.ok) throw new Error('Erro ao buscar lojas');
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Erro ao buscar dados de vendas');
+    }
     return res.json();
   },
 
-  async getSalesData(startDate: string, endDate: string, token: string) {
-    const res = await fetch(
-      `${BASE_URL}/reports/sales?start_date=${startDate}&end_date=${endDate}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      }
-    );
-    if (!res.ok) throw new Error('Erro ao buscar dados de vendas');
-    return res.json();
-  },
-
-  async getDailyReport(date: string, token: string) {
-    const res = await fetch(`${BASE_URL}/reports/daily?date=${date}`, {
-      headers: { Authorization: `Bearer ${token}` },
+  async getDailyReport(date: string, _token: string, apiId?: string) {
+    // Usar rota API do Next.js como proxy para evitar CORS
+    const params = new URLSearchParams({
+      date,
+    });
+    if (apiId) {
+      params.append('apiId', apiId);
+    }
+    
+    const res = await fetch(`/api/saipos/daily?${params.toString()}`, {
+      headers: { 
+        'Content-Type': 'application/json'
+      },
       cache: 'no-store',
     });
-    if (!res.ok) throw new Error('Erro ao buscar relatório diário');
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Erro ao buscar relatório diário');
+    }
     return res.json();
   },
 };
@@ -587,6 +636,12 @@ function toNumberVal(value: unknown, fallback = 0): number {
   return fallback;
 }
 
+// Helper para pegar valor total da venda (suporta ambos os nomes de campo)
+function getTotalSaleValue(sale: JsonObject): number {
+  // A API pode retornar total_amount OU total_sale_value
+  return toNumberVal(sale.total_amount || sale.total_sale_value);
+}
+
 export function normalizeStoresResponse(apiJson: unknown): SaiposStore[] {
   try {
     const root = (apiJson ?? {}) as JsonObject;
@@ -615,86 +670,472 @@ export function normalizeStoresResponse(apiJson: unknown): SaiposStore[] {
 
 export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
   try {
-    const root = (apiJson ?? {}) as JsonObject;
-    const arrCandidate = Array.isArray(apiJson) ? apiJson : getProp(root, 'data') ?? getProp(root, 'results');
-    const arr = asArray(arrCandidate);
-    if (Array.isArray(arr) && arr.length > 0) {
-      return arr.map((row: JsonObject) => ({
-        date: toStringVal(row.date ?? row.day ?? new Date().toISOString().split('T')[0]),
-        totalSales: toNumberVal(row.total_sales ?? row.revenue ?? 0),
-        totalOrders: toNumberVal(row.total_orders ?? row.orders ?? 0),
-        averageTicket: toNumberVal(row.avg_ticket ?? row.average_ticket ?? 0),
-        uniqueCustomers: toNumberVal(row.unique_customers ?? 0),
-        totalRevenue: toNumberVal(row.total_revenue ?? row.revenue ?? 0),
+    // Se a API retornou array diretamente
+    if (Array.isArray(apiJson)) {
+      // Não fazer nada, continuar processando o array diretamente
+    } else if (apiJson && typeof apiJson === 'object') {
+      // Se retornou no formato { data: [...] }
+      const root = apiJson as JsonObject;
+      const candidate = getProp(root, 'data') ?? getProp(root, 'results') ?? getProp(root, 'sales');
+      if (Array.isArray(candidate)) {
+        apiJson = candidate;
+      } else {
+        // Se nenhum dos formatos reconhecidos, retornar array vazio
+        return [];
+      }
+    } else {
+      // Se nenhum dos formatos reconhecidos, retornar array vazio
+      return [];
+    }
+
+    // Agora apiJson deve ser um array
+    const salesArray: JsonObject[] = Array.isArray(apiJson) ? apiJson as JsonObject[] : [];
+
+    if (salesArray.length === 0) {
+      return [];
+    }
+
+    // Deduplicar vendas por ID para evitar contar a mesma venda múltiplas vezes
+    const uniqueSalesMap = new Map<string, JsonObject>();
+    salesArray.forEach((sale: JsonObject) => {
+      const saleId = toStringVal(sale.id_sale ?? sale.id ?? sale.numero ?? '');
+      if (saleId && !uniqueSalesMap.has(saleId)) {
+        uniqueSalesMap.set(saleId, sale);
+      } else if (!saleId) {
+        // Se não tem ID, usar uma chave composta por data + número da nota
+        const nfce = getProp(sale, 'nfce');
+        const nfceNum = nfce && typeof nfce === 'object' ? toStringVal((nfce as JsonObject).numero) : '';
+        const compositeKey = `${toStringVal(sale.shift_date ?? sale.created_at ?? sale.date)}_${nfceNum}`;
+        if (!uniqueSalesMap.has(compositeKey)) {
+          uniqueSalesMap.set(compositeKey, sale);
+        }
+      }
+    });
+    
+    const uniqueSalesArray = Array.from(uniqueSalesMap.values());
+    console.log(`🔄 Deduplicação: ${salesArray.length} vendas → ${uniqueSalesArray.length} vendas únicas`);
+
+    // Agrupar vendas por data (shift_date)
+    const salesByDate = new Map<string, JsonObject[]>();
+    
+    uniqueSalesArray.forEach((sale: JsonObject) => {
+      const shiftDate = toStringVal(sale.shift_date ?? sale.created_at ?? sale.date);
+      const dateOnly = shiftDate.split('T')[0]; // Extrair apenas a data
+      
+      if (!salesByDate.has(dateOnly)) {
+        salesByDate.set(dateOnly, []);
+      }
+      salesByDate.get(dateOnly)!.push(sale);
+    });
+
+    // Converter cada grupo de vendas do dia em SaiposSalesData
+    return Array.from(salesByDate.entries()).map(([date, sales]) => {
+      // Calcular totais por tipo de venda (id_sale_type)
+      // 1=Delivery, 2=Retirada, 3=Salão, 4=Ficha
+      const deliverySales = sales.filter(s => toNumberVal(s.id_sale_type) === 1);
+      const counterSales = sales.filter(s => toNumberVal(s.id_sale_type) === 2);
+      const hallSales = sales.filter(s => toNumberVal(s.id_sale_type) === 3);
+      const ticketSales = sales.filter(s => toNumberVal(s.id_sale_type) === 4);
+
+      // Calcular valores totais usando total_amount ou total_sale_value (já inclui descontos e acréscimos)
+      const totalRevenue = sales.reduce((sum, s) => sum + getTotalSaleValue(s), 0);
+      const totalOrders = sales.length;
+      const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+      // Extrair clientes únicos (contar apenas id_customer únicos)
+      const customerIds = new Set<string>();
+      sales.forEach(s => {
+        const customer = getProp(s, 'customer');
+        if (customer && typeof customer === 'object') {
+          const customerId = toStringVal((customer as JsonObject).id_customer);
+          if (customerId) {
+            customerIds.add(customerId);
+          }
+        }
+      });
+      const uniqueCustomers = customerIds.size;
+
+      // Extrair produtos mais vendidos dos itens (incluindo complementos)
+      const productMap = new Map<string, { quantity: number; revenue: number; name: string }>();
+      
+      sales.forEach((sale: JsonObject) => {
+        const items = asArray(getProp(sale, 'items'));
+        items.forEach((item: JsonObject) => {
+          // Ignorar itens deletados
+          if (item.deleted === true) return;
+          
+          const itemName = toStringVal(item.desc_sale_item || item.desc_store_item || 'Item sem nome');
+          const quantity = toNumberVal(item.quantity);
+          const unitPrice = toNumberVal(item.unit_price);
+          
+          // Adicionar preço de complementos (choices)
+          let additionalPrice = 0;
+          const choices = asArray(getProp(item, 'choices'));
+          choices.forEach((choice: JsonObject) => {
+            additionalPrice += toNumberVal(choice.aditional_price);
+          });
+          
+          const itemTotal = (unitPrice + additionalPrice) * quantity;
+
+          if (productMap.has(itemName)) {
+            const existing = productMap.get(itemName)!;
+            existing.quantity += quantity;
+            existing.revenue += itemTotal;
+          } else {
+            productMap.set(itemName, { quantity, revenue: itemTotal, name: itemName });
+          }
+        });
+      });
+
+      const topProducts = Array.from(productMap.values())
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10)
+        .map(p => ({ name: p.name, quantity: p.quantity, revenue: p.revenue }));
+
+      // Calcular breakdown por canal/origem
+      const originMap = new Map<string, { quantity: number; revenue: number }>();
+      
+      sales.forEach((sale: JsonObject) => {
+        let originName = 'Sem origem';
+        
+        const partnerSale = getProp(sale, 'partner_sale');
+        if (partnerSale && typeof partnerSale === 'object') {
+          const partnerObj = partnerSale as JsonObject;
+          const partnerName = toStringVal(partnerObj.desc_store_partner || partnerObj.name || partnerObj.partner);
+          if (partnerName && partnerName !== 'null' && partnerName !== '') {
+            originName = partnerName;
+          }
+        }
+        
+        if (originName === 'Sem origem') {
+          const descSale = toStringVal(getProp(sale, 'desc_sale'));
+          if (descSale && descSale !== 'null' && descSale !== '') {
+            originName = descSale;
+          }
+        }
+        
+        if (originName === 'Sem origem') {
+          const origin = toStringVal(getProp(sale, 'origin'));
+          if (origin && origin !== 'null' && origin !== '') {
+            originName = origin;
+          }
+        }
+        
+        // Normalizar nomes
+        originName = originName.toLowerCase();
+        if (originName.includes('ifood')) originName = 'iFood';
+        else if (originName.includes('telefone') || originName.includes('phone')) originName = 'Telefone';
+        else if (originName.includes('delivery direto') || originName.includes('direto')) originName = 'Delivery Direto';
+        else if (originName.includes('central')) originName = 'Central de Pedidos';
+        else if (originName.includes('whatsapp') || originName.includes('wa')) originName = 'WhatsApp';
+        else if (originName.includes('facebook')) originName = 'Facebook';
+        else if (originName.includes('anota')) originName = 'Anota.ai';
+        else originName = originName.charAt(0).toUpperCase() + originName.slice(1);
+        
+        const saleValue = getTotalSaleValue(sale);
+        
+        if (originMap.has(originName)) {
+          const existing = originMap.get(originName)!;
+          existing.quantity += 1;
+          existing.revenue += saleValue;
+        } else {
+          originMap.set(originName, { quantity: 1, revenue: saleValue });
+        }
+      });
+
+      const salesByOrigin = Array.from(originMap.entries())
+        .map(([origin, data]) => ({
+          origin,
+          quantity: data.quantity,
+          revenue: data.revenue,
+        }))
+        .sort((a, b) => b.revenue - a.revenue);
+
+      return {
+        date: date,
+        totalSales: totalRevenue,
+        totalOrders: totalOrders,
+        averageTicket: averageTicket,
+        uniqueCustomers: uniqueCustomers,
+        totalRevenue: totalRevenue,
+        deliverySales: deliverySales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+        counterSales: counterSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+        hallSales: hallSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+        ticketSales: ticketSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
         ordersByChannel: {
-          delivery: toNumberVal(row.delivery ?? 0),
-          counter: toNumberVal(row.counter ?? 0),
-          hall: toNumberVal(row.hall ?? 0),
-          ticket: toNumberVal(row.ticket ?? 0),
+          delivery: deliverySales.length,
+          counter: counterSales.length,
+          hall: hallSales.length,
+          ticket: ticketSales.length,
         },
-        topProducts: (() => {
-          const tp = getProp(row, 'top_products');
-          const arr = asArray(tp);
-          return arr.map((p: JsonObject) => ({
-              name: toStringVal(p.name),
-              quantity: toNumberVal(p.quantity),
-              revenue: toNumberVal(p.revenue),
-            }));
-        })(),
-      }));
-    }
-    // Fallback quando vem só um summary
-    const summary = getProp(root, 'summary') as JsonObject | undefined;
-    if (summary) {
-      return [
-        {
-          date: new Date().toISOString().split('T')[0],
-          totalSales: toNumberVal(summary.totalSales ?? summary.revenue ?? 0),
-          totalOrders: toNumberVal(summary.totalOrders ?? 0),
-          averageTicket: toNumberVal(summary.averageTicket ?? 0),
-          uniqueCustomers: toNumberVal(summary.uniqueCustomers ?? 0),
-          totalRevenue: toNumberVal(summary.totalSales ?? summary.revenue ?? 0),
-          ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
-          topProducts: [],
-        },
-      ];
-    }
-    return [];
-  } catch {
+        topProducts: topProducts,
+        salesByOrigin: salesByOrigin,
+      };
+    });
+  } catch (error) {
+    console.error('Erro ao normalizar resposta de vendas:', error);
     return [];
   }
 }
 
 export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
   try {
-    const root = (apiJson ?? {}) as JsonObject;
-    const dataCandidate = getProp(root, 'data');
-    const item = asArray(dataCandidate)[0] ?? (dataCandidate as JsonObject | undefined) ?? (apiJson as JsonObject);
-    return {
-      date: toStringVal(item?.date ?? new Date().toISOString().split('T')[0]),
-      totalSales: toNumberVal(item?.total_sales ?? item?.revenue ?? 0),
-      totalOrders: toNumberVal(item?.total_orders ?? item?.orders ?? 0),
-      averageTicket: toNumberVal(item?.avg_ticket ?? item?.average_ticket ?? 0),
-      uniqueCustomers: toNumberVal(item?.unique_customers ?? 0),
-      totalRevenue: toNumberVal(item?.total_revenue ?? item?.revenue ?? 0),
+    // Verificar se é null ou undefined
+    if (apiJson === null || apiJson === undefined) {
+      const today = new Date().toISOString().split('T')[0];
+      return {
+        date: today,
+        totalSales: 0,
+        totalOrders: 0,
+        averageTicket: 0,
+        uniqueCustomers: 0,
+        totalRevenue: 0,
+        ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
+        topProducts: [],
+        salesByOrigin: [],
+      };
+    }
+    
+    // Se a API retornou array diretamente
+    let salesArray: JsonObject[] = [];
+    if (Array.isArray(apiJson)) {
+      salesArray = apiJson as JsonObject[];
+    } else if (apiJson && typeof apiJson === 'object') {
+      // Se retornou no formato { data: [...] }
+      const root = apiJson as JsonObject;
+      const candidate = getProp(root, 'data') ?? getProp(root, 'results') ?? getProp(root, 'sales') ?? getProp(root, 'items');
+      if (Array.isArray(candidate)) {
+        salesArray = candidate;
+      } else {
+        // Se nenhum dos formatos reconhecidos, retornar array vazio no objeto padrão
+        const today = new Date().toISOString().split('T')[0];
+        return {
+          date: today,
+          totalSales: 0,
+          totalOrders: 0,
+          averageTicket: 0,
+          uniqueCustomers: 0,
+          totalRevenue: 0,
+          ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
+          topProducts: [],
+          salesByOrigin: [],
+        };
+      }
+    } else {
+      // Se nenhum dos formatos reconhecidos, retornar array vazio no objeto padrão
+      const today = new Date().toISOString().split('T')[0];
+      return {
+        date: today,
+        totalSales: 0,
+        totalOrders: 0,
+        averageTicket: 0,
+        uniqueCustomers: 0,
+        totalRevenue: 0,
+        ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
+        topProducts: [],
+        salesByOrigin: [],
+      };
+    }
+
+    if (salesArray.length === 0) {
+      const today = new Date().toISOString().split('T')[0];
+      return {
+        date: today,
+        totalSales: 0,
+        totalOrders: 0,
+        averageTicket: 0,
+        uniqueCustomers: 0,
+        totalRevenue: 0,
+        ordersByChannel: { delivery: 0, counter: 0, hall: 0, ticket: 0 },
+        topProducts: [],
+        salesByOrigin: [],
+      };
+    }
+
+    // Pegar a data do primeiro item (assumindo que todos são do mesmo dia)
+    const firstSale = salesArray[0] as JsonObject;
+    const shiftDate = toStringVal(firstSale.shift_date ?? firstSale.created_at ?? new Date().toISOString());
+    const dateOnly = shiftDate.split('T')[0];
+
+    console.log('🔍 DEBUG - Primeira venda:', JSON.stringify(firstSale).substring(0, 500));
+    console.log('🔍 DEBUG - Campos disponíveis na venda:', Object.keys(firstSale));
+    console.log('🔍 DEBUG - total_amount:', firstSale.total_amount);
+    console.log('🔍 DEBUG - total_sale_value:', firstSale.total_sale_value);
+    console.log('🔍 DEBUG - id_sale_type:', firstSale.id_sale_type);
+    
+    // Verificar estrutura de partner_sale (canal/origem)
+    const partnerSale = getProp(firstSale, 'partner_sale');
+    console.log('🔍 DEBUG - partner_sale:', partnerSale);
+    const origin = getProp(firstSale, 'origin');
+    console.log('🔍 DEBUG - origin:', origin);
+    const desc_sale = getProp(firstSale, 'desc_sale');
+    console.log('🔍 DEBUG - desc_sale:', desc_sale);
+
+    // Calcular totais por tipo de venda (id_sale_type)
+    // 1=Delivery, 2=Retirada, 3=Salão, 4=Ficha
+    const deliverySales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 1);
+    const counterSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 2);
+    const hallSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 3);
+    const ticketSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 4);
+
+    // Calcular valores totais usando total_amount ou total_sale_value (já inclui descontos e acréscimos)
+    const totalRevenue = salesArray.reduce((sum, s) => sum + getTotalSaleValue(s), 0);
+    const totalOrders = salesArray.length;
+    const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+    console.log('🔍 DEBUG - Total calculado:', totalRevenue);
+    console.log('🔍 DEBUG - Pedidos:', totalOrders);
+    console.log('🔍 DEBUG - Ticket médio:', averageTicket);
+
+    // Extrair clientes únicos (contar apenas id_customer únicos)
+    const customerIds = new Set<string>();
+    salesArray.forEach(s => {
+      const customer = getProp(s, 'customer');
+      if (customer && typeof customer === 'object') {
+        const customerId = toStringVal((customer as JsonObject).id_customer);
+        if (customerId) {
+          customerIds.add(customerId);
+        }
+      }
+    });
+    const uniqueCustomers = customerIds.size;
+
+    console.log('🔍 DEBUG - Clientes únicos:', uniqueCustomers);
+
+    // Extrair produtos mais vendidos dos itens (incluindo complementos)
+    const productMap = new Map<string, { quantity: number; revenue: number; name: string }>();
+    
+    salesArray.forEach((sale: JsonObject) => {
+      const items = asArray(getProp(sale, 'items'));
+      items.forEach((item: JsonObject) => {
+        // Ignorar itens deletados
+        if (item.deleted === true) return;
+        
+        const itemName = toStringVal(item.desc_sale_item || item.desc_store_item || 'Item sem nome');
+        const quantity = toNumberVal(item.quantity);
+        const unitPrice = toNumberVal(item.unit_price);
+        
+        // Adicionar preço de complementos (choices)
+        let additionalPrice = 0;
+        const choices = asArray(getProp(item, 'choices'));
+        choices.forEach((choice: JsonObject) => {
+          additionalPrice += toNumberVal(choice.aditional_price);
+        });
+        
+        const itemTotal = (unitPrice + additionalPrice) * quantity;
+
+        if (productMap.has(itemName)) {
+          const existing = productMap.get(itemName)!;
+          existing.quantity += quantity;
+          existing.revenue += itemTotal;
+        } else {
+          productMap.set(itemName, { quantity, revenue: itemTotal, name: itemName });
+        }
+      });
+    });
+
+    const topProducts = Array.from(productMap.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10)
+      .map(p => ({ name: p.name, quantity: p.quantity, revenue: p.revenue }));
+
+    console.log('🔍 DEBUG - Top produtos:', topProducts.slice(0, 3));
+
+    // Calcular breakdown por canal/origem
+    const originMap = new Map<string, { quantity: number; revenue: number }>();
+    
+    salesArray.forEach((sale: JsonObject) => {
+      // Tentar diferentes campos para identificar o canal
+      let originName = 'Sem origem';
+      
+      // Verificar partner_sale (marketplace)
+      const partnerSale = getProp(sale, 'partner_sale');
+      if (partnerSale && typeof partnerSale === 'object') {
+        const partnerObj = partnerSale as JsonObject;
+        const partnerName = toStringVal(partnerObj.desc_store_partner || partnerObj.name || partnerObj.partner);
+        if (partnerName && partnerName !== 'null' && partnerName !== '') {
+          originName = partnerName;
+        }
+      }
+      
+      // Se não encontrou em partner_sale, verificar desc_sale
+      if (originName === 'Sem origem') {
+        const descSale = toStringVal(getProp(sale, 'desc_sale'));
+        if (descSale && descSale !== 'null' && descSale !== '') {
+          originName = descSale;
+        }
+      }
+      
+      // Se ainda não encontrou, verificar campo origin
+      if (originName === 'Sem origem') {
+        const origin = toStringVal(getProp(sale, 'origin'));
+        if (origin && origin !== 'null' && origin !== '') {
+          originName = origin;
+        }
+      }
+      
+      // Normalizar nomes comuns
+      originName = originName.toLowerCase();
+      if (originName.includes('ifood')) originName = 'iFood';
+      else if (originName.includes('telefone') || originName.includes('phone')) originName = 'Telefone';
+      else if (originName.includes('delivery direto') || originName.includes('direto')) originName = 'Delivery Direto';
+      else if (originName.includes('central')) originName = 'Central de Pedidos';
+      else if (originName.includes('whatsapp') || originName.includes('wa')) originName = 'WhatsApp';
+      else if (originName.includes('facebook')) originName = 'Facebook';
+      else if (originName.includes('anota')) originName = 'Anota.ai';
+      else originName = originName.charAt(0).toUpperCase() + originName.slice(1);
+      
+      const saleValue = getTotalSaleValue(sale);
+      
+      if (originMap.has(originName)) {
+        const existing = originMap.get(originName)!;
+        existing.quantity += 1;
+        existing.revenue += saleValue;
+      } else {
+        originMap.set(originName, { quantity: 1, revenue: saleValue });
+      }
+    });
+
+    const salesByOrigin = Array.from(originMap.entries())
+      .map(([origin, data]) => ({
+        origin,
+        quantity: data.quantity,
+        revenue: data.revenue,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    console.log('🔍 DEBUG - Vendas por canal/origem:', salesByOrigin);
+    console.log('🔍 DEBUG - Total de vendas processadas:', salesArray.length);
+
+    const result = {
+      date: dateOnly,
+      totalSales: totalRevenue,
+      totalOrders: totalOrders,
+      averageTicket: averageTicket,
+      uniqueCustomers: uniqueCustomers,
+      totalRevenue: totalRevenue,
+      deliverySales: deliverySales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+      counterSales: counterSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+      hallSales: hallSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
+      ticketSales: ticketSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
       ordersByChannel: {
-        delivery: toNumberVal(item?.delivery ?? 0),
-        counter: toNumberVal(item?.counter ?? 0),
-        hall: toNumberVal(item?.hall ?? 0),
-        ticket: toNumberVal(item?.ticket ?? 0),
+        delivery: deliverySales.length,
+        counter: counterSales.length,
+        hall: hallSales.length,
+        ticket: ticketSales.length,
       },
-      topProducts: (() => {
-        const tp = getProp(item as JsonObject, 'top_products');
-        return asArray(tp).map((p: JsonObject) => ({
-          name: toStringVal(p?.name),
-          quantity: toNumberVal(p?.quantity),
-          revenue: toNumberVal(p?.revenue),
-        }));
-      })(),
+      topProducts: topProducts,
+      salesByOrigin: salesByOrigin,
     };
-  } catch {
+
+    console.log('✅ DEBUG - Resultado final:', result);
+
+    return result;
+  } catch (error) {
+    console.error('Erro ao normalizar resposta diária:', error);
+    const today = new Date().toISOString().split('T')[0];
     return {
-      date: new Date().toISOString().split('T')[0],
+      date: today,
       totalSales: 0,
       totalOrders: 0,
       averageTicket: 0,
