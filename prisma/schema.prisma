@@ -122,3 +122,20 @@ model StackSession {
 
   @@map("stack_sessions")
 }
+
+model SalesDaily {
+  id             String   @id @default(cuid())
+  storeId        String
+  date           DateTime  @db.Date
+  totalOrders    Int
+  totalSales     Decimal  @db.Decimal(12,2)
+  averageTicket  Decimal? @db.Decimal(12,2)
+  uniqueCustomers Int?
+  channels       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([storeId, date])
+  @@index([storeId, date])
+  @@map("sales_daily")
+}
