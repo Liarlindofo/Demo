@@ -613,6 +613,23 @@ export const saiposHTTP = {
 // ===== Normalizadores para respostas desconhecidas da API =====
 type JsonObject = Record<string, unknown>;
 
+// Função para calcular a data comercial baseada no horário de operação
+// A loja funciona das 17:00 até 23:30
+// Se a venda aconteceu antes das 17h, ela pertence ao dia anterior
+function getBusinessDate(date: Date): string {
+  const START_HOUR = 17; // 17:00
+  const d = new Date(date);
+  const hour = d.getHours();
+
+  // Se a venda aconteceu antes das 17h, ela pertence ao dia anterior
+  if (hour < START_HOUR) {
+    d.setDate(d.getDate() - 1);
+  }
+
+  // Retorna YYYY-MM-DD
+  return d.toISOString().split("T")[0];
+}
+
 function asArray(value: unknown): JsonObject[] {
   return Array.isArray(value) ? (value as JsonObject[]) : [];
 }
@@ -715,17 +732,19 @@ export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
     const uniqueSalesArray = Array.from(uniqueSalesMap.values());
     console.log(`🔄 Deduplicação: ${salesArray.length} vendas → ${uniqueSalesArray.length} vendas únicas`);
 
-    // Agrupar vendas por data (shift_date)
+    // Agrupar vendas por data comercial (shift_date)
     const salesByDate = new Map<string, JsonObject[]>();
     
     uniqueSalesArray.forEach((sale: JsonObject) => {
-      const shiftDate = toStringVal(sale.shift_date ?? sale.created_at ?? sale.date);
-      const dateOnly = shiftDate.split('T')[0]; // Extrair apenas a data
+      const shiftDate = toStringVal(sale.shift_date ?? sale.created_at ?? sale.date ?? sale.sale_date);
+      // Usar getBusinessDate para calcular a data comercial correta
+      const saleDateObj = new Date(shiftDate);
+      const businessDate = getBusinessDate(saleDateObj);
       
-      if (!salesByDate.has(dateOnly)) {
-        salesByDate.set(dateOnly, []);
+      if (!salesByDate.has(businessDate)) {
+        salesByDate.set(businessDate, []);
       }
-      salesByDate.get(dateOnly)!.push(sale);
+      salesByDate.get(businessDate)!.push(sale);
     });
 
     // Converter cada grupo de vendas do dia em SaiposSalesData
@@ -952,10 +971,32 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
       };
     }
 
-    // Pegar a data do primeiro item (assumindo que todos são do mesmo dia)
-    const firstSale = salesArray[0] as JsonObject;
-    const shiftDate = toStringVal(firstSale.shift_date ?? firstSale.created_at ?? new Date().toISOString());
-    const dateOnly = shiftDate.split('T')[0];
+    // Agrupar vendas por data comercial antes de processar
+    // Isso garante que vendas após meia-noite até 17h sejam agrupadas no dia anterior
+    const salesByBusinessDate = new Map<string, JsonObject[]>();
+    
+    salesArray.forEach((sale: JsonObject) => {
+      const shiftDate = toStringVal(sale.shift_date ?? sale.created_at ?? sale.date ?? sale.sale_date ?? new Date().toISOString());
+      const saleDateObj = new Date(shiftDate);
+      const businessDate = getBusinessDate(saleDateObj);
+      
+      if (!salesByBusinessDate.has(businessDate)) {
+        salesByBusinessDate.set(businessDate, []);
+      }
+      salesByBusinessDate.get(businessDate)!.push(sale);
+    });
+    
+    // Processar todas as vendas agrupadas (normalmente será um único dia, mas pode ter vendas do dia anterior)
+    // Pegar a data comercial mais recente (ou a primeira se houver apenas uma)
+    const businessDates = Array.from(salesByBusinessDate.keys()).sort();
+    const dateOnly = businessDates.length > 0 ? businessDates[businessDates.length - 1] : new Date().toISOString().split('T')[0];
+    
+    // Usar todas as vendas do dia comercial mais recente (ou todas se houver apenas um dia)
+    const salesToProcess = businessDates.length === 1 
+      ? salesByBusinessDate.get(dateOnly) || []
+      : salesByBusinessDate.get(dateOnly) || [];
+    
+    const firstSale = salesToProcess.length > 0 ? salesToProcess[0] as JsonObject : salesArray[0] as JsonObject;
 
     console.log('🔍 DEBUG - Primeira venda:', JSON.stringify(firstSale).substring(0, 500));
     console.log('🔍 DEBUG - Campos disponíveis na venda:', Object.keys(firstSale));
@@ -973,14 +1014,14 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
 
     // Calcular totais por tipo de venda (id_sale_type)
     // 1=Delivery, 2=Retirada, 3=Salão, 4=Ficha
-    const deliverySales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 1);
-    const counterSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 2);
-    const hallSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 3);
-    const ticketSales = salesArray.filter(s => toNumberVal(s.id_sale_type) === 4);
+    const deliverySales = salesToProcess.filter(s => toNumberVal(s.id_sale_type) === 1);
+    const counterSales = salesToProcess.filter(s => toNumberVal(s.id_sale_type) === 2);
+    const hallSales = salesToProcess.filter(s => toNumberVal(s.id_sale_type) === 3);
+    const ticketSales = salesToProcess.filter(s => toNumberVal(s.id_sale_type) === 4);
 
     // Calcular valores totais usando total_amount ou total_sale_value (já inclui descontos e acréscimos)
-    const totalRevenue = salesArray.reduce((sum, s) => sum + getTotalSaleValue(s), 0);
-    const totalOrders = salesArray.length;
+    const totalRevenue = salesToProcess.reduce((sum, s) => sum + getTotalSaleValue(s), 0);
+    const totalOrders = salesToProcess.length;
     const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
     console.log('🔍 DEBUG - Total calculado:', totalRevenue);
@@ -989,7 +1030,7 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
 
     // Extrair clientes únicos (contar apenas id_customer únicos)
     const customerIds = new Set<string>();
-    salesArray.forEach(s => {
+    salesToProcess.forEach(s => {
       const customer = getProp(s, 'customer');
       if (customer && typeof customer === 'object') {
         const customerId = toStringVal((customer as JsonObject).id_customer);
@@ -1005,7 +1046,7 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
     // Extrair produtos mais vendidos dos itens (incluindo complementos)
     const productMap = new Map<string, { quantity: number; revenue: number; name: string }>();
     
-    salesArray.forEach((sale: JsonObject) => {
+    salesToProcess.forEach((sale: JsonObject) => {
       const items = asArray(getProp(sale, 'items'));
       items.forEach((item: JsonObject) => {
         // Ignorar itens deletados
@@ -1044,7 +1085,7 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
     // Calcular breakdown por canal/origem
     const originMap = new Map<string, { quantity: number; revenue: number }>();
     
-    salesArray.forEach((sale: JsonObject) => {
+    salesToProcess.forEach((sale: JsonObject) => {
       // Tentar diferentes campos para identificar o canal
       let originName = 'Sem origem';
       
@@ -1105,7 +1146,7 @@ export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {
       .sort((a, b) => b.revenue - a.revenue);
 
     console.log('🔍 DEBUG - Vendas por canal/origem:', salesByOrigin);
-    console.log('🔍 DEBUG - Total de vendas processadas:', salesArray.length);
+    console.log('🔍 DEBUG - Total de vendas processadas:', salesToProcess.length);
 
     const result = {
       date: dateOnly,
