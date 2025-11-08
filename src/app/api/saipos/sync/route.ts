@@ -213,8 +213,9 @@ export async function POST(request: Request) {
         : syncEndDate); // Se não for initial load, sincronizar apenas o dia atual
 
     console.log(
-      `🔄 Iniciando sincronização para storeId=${targetStoreId}, período: ${syncStartDate} a ${syncEndDate}${initialLoad ? " (carregamento inicial)" : ""}`
+      `🔄 Iniciando sincronização para storeId="${targetStoreId}", período: ${syncStartDate} a ${syncEndDate}${initialLoad ? " (carregamento inicial)" : ""}`
     );
+    console.log(`📊 API ID: ${apiId}, Store ID: ${targetStoreId}`);
 
     let syncedCount = 0;
 
