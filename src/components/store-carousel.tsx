@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 import { useApp } from "@/contexts/app-context";
 import { SaiposStore } from "@/lib/saipos-api";
 
@@ -22,7 +24,47 @@ export function StoreCarousel() {
   const [isClient, setIsClient] = useState(false);
   const [saiposStores, setSaiposStores] = useState<SaiposStore[]>([]);
   const [isLoadingStores, setIsLoadingStores] = useState(true);
+  const [syncingStoreId, setSyncingStoreId] = useState<string | null>(null);
   const { selectedStore, setSelectedStore, addToast, connectedAPIs } = useApp();
+  
+  const handleSync = async (storeId: string, apiId?: string) => {
+    if (!apiId) {
+      addToast('API ID não encontrado para esta loja', 'error');
+      return;
+    }
+    
+    setSyncingStoreId(storeId);
+    try {
+      addToast('Sincronizando dados...', 'info');
+      
+      const response = await fetch('/api/saipos/sync-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiId: apiId,
+          storeId: storeId,
+          days: 15, // Sincronizar últimos 15 dias
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        addToast(`Sincronização concluída: ${result.synced || 0} registros`, 'success');
+        // Recarregar página após 2 segundos para atualizar dados
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        addToast(`Erro na sincronização: ${result.error || 'Erro desconhecido'}`, 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao sincronizar:', error);
+      addToast('Erro ao sincronizar dados', 'error');
+    } finally {
+      setSyncingStoreId(null);
+    }
+  };
 
   useEffect(() => {
     setIsClient(true);
@@ -190,7 +232,7 @@ export function StoreCarousel() {
                       )}
                     </div>
                     
-                    <div className="text-center">
+                    <div className="text-center w-full">
                       <h3 className="font-medium text-white text-sm">{store.name}</h3>
                       {store.status === "connected" && store.lastSync && (
                         <p className="text-xs text-gray-400 mt-1">
@@ -201,6 +243,21 @@ export function StoreCarousel() {
                         <p className="text-xs text-red-400 mt-1">
                           Desconectado
                         </p>
+                      )}
+                      {store.status === "connected" && store.apiId && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2 w-full text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSync(store.name, store.apiId);
+                          }}
+                          disabled={syncingStoreId === store.id}
+                        >
+                          <RefreshCw className={`h-3 w-3 mr-1 ${syncingStoreId === store.id ? 'animate-spin' : ''}`} />
+                          {syncingStoreId === store.id ? 'Sincronizando...' : 'Sincronizar'}
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -248,12 +305,27 @@ export function StoreCarousel() {
                         )}
                       </div>
                       
-                      <div className="text-center">
+                      <div className="text-center w-full">
                         <h3 className="font-semibold text-white text-lg">{store.name}</h3>
                         {store.status === "connected" && store.lastSync && (
                           <p className="text-sm text-gray-400 mt-2">
                             Sincronizado {store.lastSync}
                           </p>
+                        )}
+                        {store.status === "connected" && store.apiId && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-3 w-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSync(store.name, store.apiId);
+                            }}
+                            disabled={syncingStoreId === store.id}
+                          >
+                            <RefreshCw className={`h-4 w-4 mr-2 ${syncingStoreId === store.id ? 'animate-spin' : ''}`} />
+                            {syncingStoreId === store.id ? 'Sincronizando...' : 'Sincronizar Agora'}
+                          </Button>
                         )}
                         {store.status === "disconnected" && (
                           <p className="text-sm text-red-400 mt-2">

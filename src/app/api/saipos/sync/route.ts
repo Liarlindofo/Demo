@@ -328,7 +328,9 @@ export async function POST(request: Request) {
       }
 
       // Normalizar dados
+      console.log(`📊 Normalizando ${sales.length} vendas...`);
       const normalized = normalizeSalesResponse(sales);
+      console.log(`📊 ${normalized.length} vendas normalizadas`);
 
       if (normalized.length === 0) {
         console.log("⚠️ Nenhuma venda normalizada");
@@ -336,6 +338,15 @@ export async function POST(request: Request) {
           success: true,
           message: "Nenhuma venda normalizada",
           synced: 0,
+        });
+      }
+      
+      // Log das primeiras vendas normalizadas para debug
+      if (normalized.length > 0) {
+        console.log(`📊 Primeira venda normalizada:`, {
+          date: normalized[0].date,
+          totalSales: normalized[0].totalSales,
+          totalOrders: normalized[0].totalOrders,
         });
       }
 
@@ -350,7 +361,7 @@ export async function POST(request: Request) {
               }
             : null;
 
-          await db.salesDaily.upsert({
+          const upsertResult = await db.salesDaily.upsert({
             where: {
               storeId_date: {
                 storeId: targetStoreId,
@@ -379,6 +390,15 @@ export async function POST(request: Request) {
               updatedAt: new Date(),
             },
           });
+
+          if (syncedCount === 0) {
+            console.log(`✅ Primeiro registro salvo:`, {
+              storeId: upsertResult.storeId,
+              date: upsertResult.date,
+              totalSales: upsertResult.totalSales,
+              totalOrders: upsertResult.totalOrders,
+            });
+          }
 
           syncedCount++;
         } catch (error) {
