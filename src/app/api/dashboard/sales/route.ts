@@ -6,11 +6,15 @@ import { Prisma } from "@prisma/client";
 // GET /api/dashboard/sales - Ler dados de vendas do cache local
 export async function GET(request: Request) {
   try {
+    console.log("📊 [GET /api/dashboard/sales] Iniciando busca de dados...");
     const url = new URL(request.url);
     const storeId = url.searchParams.get("storeId");
     const range = url.searchParams.get("range") || "7d"; // 1d, 7d, 15d (máximo)
 
+    console.log("📊 Parâmetros recebidos:", { storeId, range });
+
     if (!storeId) {
+      console.error("❌ storeId não fornecido");
       return NextResponse.json(
         { error: "storeId é obrigatório" },
         { status: 400 }
@@ -41,31 +45,41 @@ export async function GET(request: Request) {
 
     // Buscar dados do cache com otimização
     // Usar select apenas dos campos necessários para melhor performance
-    const salesData = await db.salesDaily.findMany({
-      where: {
-        storeId: storeId,
-        date: {
-          gte: startDate,
-          lte: today,
+    console.log("📊 Buscando dados do banco...", { storeId, startDate, today, range });
+    
+    let salesData;
+    try {
+      salesData = await db.salesDaily.findMany({
+        where: {
+          storeId: storeId,
+          date: {
+            gte: startDate,
+            lte: today,
+          },
         },
-      },
-      select: {
-        date: true,
-        totalSales: true,
-        totalOrders: true,
-        averageTicket: true,
-        uniqueCustomers: true,
-        channels: true,
-      },
-      orderBy: {
-        date: "asc",
-      },
-      // Limitar resultados para períodos maiores
-      take: range === "15d" ? 15 : undefined,
-    });
+        select: {
+          date: true,
+          totalSales: true,
+          totalOrders: true,
+          averageTicket: true,
+          uniqueCustomers: true,
+          channels: true,
+        },
+        orderBy: {
+          date: "asc",
+        },
+        // Limitar resultados para períodos maiores
+        take: range === "15d" ? 15 : undefined,
+      });
+      console.log(`📊 Dados encontrados: ${salesData.length} registros`);
+    } catch (dbError) {
+      console.error("❌ Erro ao buscar dados do banco:", dbError);
+      throw dbError;
+    }
 
     // Converter para formato esperado pela dashboard
-    const formattedData = salesData.map((item) => {
+    console.log("📊 Convertendo dados...");
+    const formattedData = salesData.map((item, index) => {
       try {
         // Converter data para string ISO (YYYY-MM-DD)
         let dateStr: string;
@@ -76,30 +90,44 @@ export async function GET(request: Request) {
           dateStr = typeof item.date === 'string' ? item.date : new Date(item.date).toISOString().split("T")[0];
         }
         
-        // Converter Decimal para Number
-        let totalSalesNum: number;
-        if (item.totalSales instanceof Prisma.Decimal) {
-          totalSalesNum = item.totalSales.toNumber();
-        } else if (typeof item.totalSales === 'object' && item.totalSales !== null && 'toNumber' in item.totalSales) {
-          totalSalesNum = (item.totalSales as Prisma.Decimal).toNumber();
-        } else if (typeof item.totalSales === 'string') {
-          totalSalesNum = parseFloat(item.totalSales);
-        } else {
-          totalSalesNum = Number(item.totalSales) || 0;
+        // Converter Decimal para Number - método mais robusto
+        let totalSalesNum: number = 0;
+        try {
+          if (item.totalSales !== null && item.totalSales !== undefined) {
+            // Verificar se é Prisma.Decimal
+            if (item.totalSales && typeof item.totalSales === 'object' && 'toNumber' in item.totalSales) {
+              totalSalesNum = (item.totalSales as Prisma.Decimal).toNumber();
+            } else if (typeof item.totalSales === 'string') {
+              totalSalesNum = parseFloat(item.totalSales) || 0;
+            } else if (typeof item.totalSales === 'number') {
+              totalSalesNum = item.totalSales;
+            } else {
+              totalSalesNum = Number(item.totalSales) || 0;
+            }
+          }
+        } catch (e) {
+          console.error(`Erro ao converter totalSales no item ${index}:`, e, item.totalSales);
+          totalSalesNum = 0;
         }
         
         // Converter averageTicket (pode ser null)
         let averageTicketNum: number = 0;
-        if (item.averageTicket !== null && item.averageTicket !== undefined) {
-          if (item.averageTicket instanceof Prisma.Decimal) {
-            averageTicketNum = item.averageTicket.toNumber();
-          } else if (typeof item.averageTicket === 'object' && 'toNumber' in item.averageTicket) {
-            averageTicketNum = (item.averageTicket as Prisma.Decimal).toNumber();
-          } else if (typeof item.averageTicket === 'string') {
-            averageTicketNum = parseFloat(item.averageTicket);
-          } else {
-            averageTicketNum = Number(item.averageTicket) || 0;
+        try {
+          if (item.averageTicket !== null && item.averageTicket !== undefined) {
+            // Verificar se é Prisma.Decimal
+            if (item.averageTicket && typeof item.averageTicket === 'object' && 'toNumber' in item.averageTicket) {
+              averageTicketNum = (item.averageTicket as Prisma.Decimal).toNumber();
+            } else if (typeof item.averageTicket === 'string') {
+              averageTicketNum = parseFloat(item.averageTicket) || 0;
+            } else if (typeof item.averageTicket === 'number') {
+              averageTicketNum = item.averageTicket;
+            } else {
+              averageTicketNum = Number(item.averageTicket) || 0;
+            }
           }
+        } catch (e) {
+          console.error(`Erro ao converter averageTicket no item ${index}:`, e, item.averageTicket);
+          averageTicketNum = 0;
         }
         
         return {
@@ -111,7 +139,7 @@ export async function GET(request: Request) {
           channels: item.channels || null,
         };
       } catch (error) {
-        console.error('Erro ao converter item:', error, item);
+        console.error(`❌ Erro ao converter item ${index}:`, error, item);
         // Retornar item com valores padrão em caso de erro
         const dateStr = item.date instanceof Date 
           ? item.date.toISOString().split("T")[0]
@@ -141,6 +169,12 @@ export async function GET(request: Request) {
     const averageTicket =
       totals.totalOrders > 0 ? totals.totalSales / totals.totalOrders : 0;
 
+    console.log("📊 Dados formatados com sucesso:", {
+      totalItems: formattedData.length,
+      totals,
+      averageTicket,
+    });
+
     return NextResponse.json({
       data: formattedData,
       summary: {
@@ -158,15 +192,23 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("❌ Erro ao buscar dados de vendas:", error);
     console.error("Stack trace:", error instanceof Error ? error.stack : "N/A");
+    console.error("Tipo do erro:", error?.constructor?.name);
+    console.error("Mensagem do erro:", error instanceof Error ? error.message : String(error));
     
-    // Retornar erro mais detalhado em desenvolvimento
+    // Retornar erro mais detalhado
     const errorMessage = error instanceof Error 
-      ? `${error.message}${error.stack ? `\n${error.stack}` : ''}`
+      ? error.message
       : String(error);
+    
+    // Em produção, não expor stack trace completo
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const errorDetails = isDevelopment && error instanceof Error && error.stack
+      ? `\n${error.stack}`
+      : '';
     
     return NextResponse.json(
       {
-        error: errorMessage,
+        error: `${errorMessage}${errorDetails}`,
         data: [],
         summary: {
           totalSales: 0,
