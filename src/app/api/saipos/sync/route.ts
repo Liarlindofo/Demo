@@ -366,7 +366,7 @@ export async function POST(request: Request) {
                 ? new Prisma.Decimal(data.averageTicket)
                 : null,
               uniqueCustomers: data.uniqueCustomers || null,
-              channels: channels as Prisma.JsonValue,
+              channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
             },
             update: {
               totalOrders: data.totalOrders,
@@ -375,7 +375,7 @@ export async function POST(request: Request) {
                 ? new Prisma.Decimal(data.averageTicket)
                 : null,
               uniqueCustomers: data.uniqueCustomers || null,
-              channels: channels as Prisma.JsonValue,
+              channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
               updatedAt: new Date(),
             },
           });
