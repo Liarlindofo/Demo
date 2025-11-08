@@ -55,7 +55,7 @@ export async function GET(request: Request) {
     
     // Verificar se há dados no banco para este storeId
     let totalRecords = 0;
-    let allRecords: any[] = [];
+    let allRecords: Array<{ date: Date; totalSales: unknown; totalOrders: number }> = [];
     
     try {
       totalRecords = await db.salesDaily.count({
