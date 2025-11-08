@@ -47,20 +47,35 @@ export async function GET(request: Request) {
     // Usar select apenas dos campos necessários para melhor performance
     console.log("📊 Buscando dados do banco...", { storeId, startDate, today, range });
     
-    // Verificar se há dados no banco para este storeId
-    const totalRecords = await db.salesDaily.count({
-      where: { storeId: storeId },
-    });
-    console.log(`📊 Total de registros no banco para storeId "${storeId}": ${totalRecords}`);
+    // Verificar se o modelo existe
+    if (!db.salesDaily) {
+      console.error("❌ Modelo salesDaily não encontrado no Prisma Client");
+      throw new Error("Modelo salesDaily não está disponível. Execute 'npx prisma generate' para regenerar o Prisma Client.");
+    }
     
-    // Buscar todos os registros para debug
-    const allRecords = await db.salesDaily.findMany({
-      where: { storeId: storeId },
-      select: { date: true, totalSales: true, totalOrders: true },
-      take: 5,
-      orderBy: { date: "desc" },
-    });
-    console.log(`📊 Últimos 5 registros encontrados:`, allRecords);
+    // Verificar se há dados no banco para este storeId
+    let totalRecords = 0;
+    let allRecords: any[] = [];
+    
+    try {
+      totalRecords = await db.salesDaily.count({
+        where: { storeId: storeId },
+      });
+      console.log(`📊 Total de registros no banco para storeId "${storeId}": ${totalRecords}`);
+      
+      // Buscar todos os registros para debug
+      allRecords = await db.salesDaily.findMany({
+        where: { storeId: storeId },
+        select: { date: true, totalSales: true, totalOrders: true },
+        take: 5,
+        orderBy: { date: "desc" },
+      });
+      console.log(`📊 Últimos 5 registros encontrados:`, allRecords);
+    } catch (countError) {
+      console.error("❌ Erro ao contar registros:", countError);
+      // Continuar mesmo com erro - pode ser que a tabela não exista ainda
+      totalRecords = 0;
+    }
     
     let salesData;
     try {
