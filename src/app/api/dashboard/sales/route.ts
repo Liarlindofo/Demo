@@ -47,6 +47,21 @@ export async function GET(request: Request) {
     // Usar select apenas dos campos necessários para melhor performance
     console.log("📊 Buscando dados do banco...", { storeId, startDate, today, range });
     
+    // Verificar se há dados no banco para este storeId
+    const totalRecords = await db.salesDaily.count({
+      where: { storeId: storeId },
+    });
+    console.log(`📊 Total de registros no banco para storeId "${storeId}": ${totalRecords}`);
+    
+    // Buscar todos os registros para debug
+    const allRecords = await db.salesDaily.findMany({
+      where: { storeId: storeId },
+      select: { date: true, totalSales: true, totalOrders: true },
+      take: 5,
+      orderBy: { date: "desc" },
+    });
+    console.log(`📊 Últimos 5 registros encontrados:`, allRecords);
+    
     let salesData;
     try {
       salesData = await db.salesDaily.findMany({
@@ -71,7 +86,14 @@ export async function GET(request: Request) {
         // Limitar resultados para períodos maiores
         take: range === "15d" ? 15 : undefined,
       });
-      console.log(`📊 Dados encontrados: ${salesData.length} registros`);
+      console.log(`📊 Dados encontrados no período: ${salesData.length} registros`);
+      if (salesData.length > 0) {
+        console.log(`📊 Primeiro registro:`, {
+          date: salesData[0].date,
+          totalSales: salesData[0].totalSales,
+          totalOrders: salesData[0].totalOrders,
+        });
+      }
     } catch (dbError) {
       console.error("❌ Erro ao buscar dados do banco:", dbError);
       throw dbError;
