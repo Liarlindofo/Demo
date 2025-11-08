@@ -29,7 +29,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validar que o storeId seja passado, caso contrário usar saiposAPI.name
     const targetStoreId = storeId || saiposAPI.name;
+
+    if (!targetStoreId) {
+      return NextResponse.json(
+        { success: false, error: "storeId não encontrado" },
+        { status: 400 }
+      );
+    }
 
     // Calcular período (últimos N dias)
     const today = new Date();
@@ -39,44 +47,47 @@ export async function POST(request: Request) {
       .split("T")[0];
 
     console.log(`📅 Período de sincronização: ${startDate} a ${endDate}`);
+    console.log(`📊 Store ID usado: ${targetStoreId}`);
+    console.log(`📊 API ID usado: ${apiId}`);
 
-    // Chamar rota de sincronização
-    const syncUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/saipos/sync`;
+    // Chamar rota de vendas via GET com query params
+    const vendasUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/saipos/vendas?data_inicial=${encodeURIComponent(startDate)}&data_final=${encodeURIComponent(endDate)}&apiId=${encodeURIComponent(apiId)}&storeId=${encodeURIComponent(targetStoreId)}`;
     
-    const response = await fetch(syncUrl, {
-      method: "POST",
+    console.log(`🔗 URL chamada: ${vendasUrl}`);
+
+    const response = await fetch(vendasUrl, {
+      method: "GET",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        apiId: apiId,
-        storeId: targetStoreId,
-        startDate: startDate,
-        endDate: endDate,
-        initialLoad: false,
-      }),
     });
 
-    const result = await response.json();
-
-    if (!response.ok || !result.success) {
-      console.error("❌ Erro na sincronização:", result);
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Erro desconhecido");
+      console.error("❌ Erro na resposta da rota /vendas:", response.status, errorText);
       return NextResponse.json(
         {
           success: false,
-          error: result.error || "Erro ao sincronizar",
+          error: `Erro ao buscar vendas: ${response.status} ${errorText}`,
         },
         { status: response.status || 500 }
       );
     }
 
-    console.log(`✅ Sincronização manual concluída: ${result.synced || 0} registros`);
+    const result = await response.json();
+
+    // Verificar se há dados na resposta
+    const vendas = Array.isArray(result?.data) ? result.data : [];
+    const totalVendas = vendas.length;
+
+    console.log(`✅ Sincronização manual concluída: ${totalVendas} vendas encontradas`);
 
     return NextResponse.json({
       success: true,
       message: "Sincronização concluída",
-      synced: result.synced || 0,
+      synced: totalVendas,
       period: { start: startDate, end: endDate },
+      data: vendas,
     });
   } catch (error) {
     console.error("❌ Erro na sincronização manual:", error);

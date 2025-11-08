@@ -126,7 +126,9 @@ export async function GET(request: Request) {
     console.log(`⚠️ Usando limit=${limit}, delay=${delayBetweenRequests}ms entre requisições`);
 
     while (hasMoreData) {
-      const apiUrl = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(startISO)}&p_filter_date_end=${encodeURIComponent(endISO)}&p_limit=${limit}&p_offset=${offset}`;
+      // Incluir store_id na URL da Saipos se fornecido
+      const storeIdParam = storeId ? `&store_id=${encodeURIComponent(storeId)}` : '';
+      const apiUrl = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(startISO)}&p_filter_date_end=${encodeURIComponent(endISO)}${storeIdParam}&p_limit=${limit}&p_offset=${offset}`;
       lastUrl = apiUrl;
       
       totalRequests++;
@@ -153,9 +155,44 @@ export async function GET(request: Request) {
       let pageData: unknown;
       try {
         const text = await response.text();
-        pageData = text ? JSON.parse(text) : null;
-      } catch (parseError) {
-        console.error("Erro ao fazer parse do JSON:", parseError);
+        
+        // Verificar se o retorno é JSON antes de fazer parse
+        if (!text || text.trim() === '') {
+          console.warn("⚠️ Resposta vazia da Saipos");
+          consecutiveEmptyPages++;
+          offset += limit;
+          continue;
+        }
+        
+        try {
+          pageData = JSON.parse(text);
+        } catch (parseError) {
+          console.error("❌ JSON inválido vindo da Saipos:");
+          console.error("Status da resposta:", response.status);
+          console.error("Headers da resposta:", Object.fromEntries(response.headers.entries()));
+          console.error("Texto recebido (primeiros 500 chars):", text.substring(0, 500));
+          console.error("Erro de parse:", parseError);
+          
+          // Retornar erro amigável se for a primeira página
+          if (offset === 0) {
+            return NextResponse.json(
+              { 
+                data: [], 
+                meta: { 
+                  status: 500, 
+                  error: "Resposta inválida da Saipos. Verifique os logs do servidor." 
+                } 
+              }, 
+              { status: 500 }
+            );
+          }
+          
+          consecutiveEmptyPages++;
+          offset += limit;
+          continue;
+        }
+      } catch (error) {
+        console.error("❌ Erro ao processar resposta:", error);
         consecutiveEmptyPages++;
         offset += limit;
         continue;
