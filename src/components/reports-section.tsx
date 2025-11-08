@@ -200,14 +200,15 @@ export function ReportsSection() {
 
       console.log("📊 Carregando dados do cache local - storeId:", storeId, "range:", range, "período:", dateStart, "a", dateEnd);
 
-      const fetchPromise = fetch(`/api/dashboard/sales?storeId=${encodeURIComponent(storeId)}&range=${range}`, {
+      const res = await fetch(`/api/dashboard/sales?storeId=${encodeURIComponent(storeId)}&range=${range}`, {
         headers: { 
           'Content-Type': 'application/json'
         },
         cache: 'no-store',
+        signal: controller.signal,
       });
       
-      const res = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+      clearTimeout(timeoutId);
 
       if (!res.ok) {
         throw new Error(`Erro ao buscar dados: ${res.status}`);
