@@ -8,11 +8,11 @@
   "crons": [
     {
       "path": "/api/cron/sync-saipos",
-      "schedule": "* * * * *"
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/cron/cleanup-sales",
-      "schedule": "0 0 * * *"
+      "schedule": "0 1 * * *"
     }
   ]
 }
