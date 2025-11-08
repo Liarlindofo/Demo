@@ -13,7 +13,8 @@
                     "db:push:force":  "prisma db push --accept-data-loss",
                     "db:migrate":  "prisma migrate dev",
                     "vercel-build":  "tsx scripts/vercel-build.ts",
-                    "db:deploy":  "prisma migrate deploy"
+                    "db:deploy":  "prisma migrate deploy",
+                    "db:check":  "tsx scripts/check-prisma.ts"
                 },
     "dependencies":  {
                          "@hookform/resolvers":  "^5.2.2",
