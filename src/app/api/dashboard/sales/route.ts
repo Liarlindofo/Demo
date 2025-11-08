@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 
 // GET /api/dashboard/sales - Ler dados de vendas do cache local
 export async function GET(request: Request) {
@@ -77,8 +78,10 @@ export async function GET(request: Request) {
         
         // Converter Decimal para Number
         let totalSalesNum: number;
-        if (typeof item.totalSales === 'object' && item.totalSales !== null && 'toNumber' in item.totalSales) {
-          totalSalesNum = (item.totalSales as any).toNumber();
+        if (item.totalSales instanceof Prisma.Decimal) {
+          totalSalesNum = item.totalSales.toNumber();
+        } else if (typeof item.totalSales === 'object' && item.totalSales !== null && 'toNumber' in item.totalSales) {
+          totalSalesNum = (item.totalSales as Prisma.Decimal).toNumber();
         } else if (typeof item.totalSales === 'string') {
           totalSalesNum = parseFloat(item.totalSales);
         } else {
@@ -88,8 +91,10 @@ export async function GET(request: Request) {
         // Converter averageTicket (pode ser null)
         let averageTicketNum: number = 0;
         if (item.averageTicket !== null && item.averageTicket !== undefined) {
-          if (typeof item.averageTicket === 'object' && 'toNumber' in item.averageTicket) {
-            averageTicketNum = (item.averageTicket as any).toNumber();
+          if (item.averageTicket instanceof Prisma.Decimal) {
+            averageTicketNum = item.averageTicket.toNumber();
+          } else if (typeof item.averageTicket === 'object' && 'toNumber' in item.averageTicket) {
+            averageTicketNum = (item.averageTicket as Prisma.Decimal).toNumber();
           } else if (typeof item.averageTicket === 'string') {
             averageTicketNum = parseFloat(item.averageTicket);
           } else {

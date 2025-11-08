@@ -70,7 +70,6 @@ export function ReportsSection() {
   const [dateEnd, setDateEnd] = useState<string>(getToday());
 
   const [salesData, setSalesData] = useState<SaiposSalesData[]>([]);
-  const [dailyData, setDailyData] = useState<SaiposSalesData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [waOpen, setWaOpen] = useState(false);
@@ -177,7 +176,7 @@ export function ReportsSection() {
         setSalesData(cached.data);
         
         // Atualizar dashboard com dados do cache
-        const totals = cached.data.reduce((acc: any, item: any) => ({
+        const totals = cached.data.reduce((acc: { totalSales: number; totalOrders: number; uniqueCustomers: number }, item: SaiposSalesData) => ({
           totalSales: acc.totalSales + (item.totalSales || 0),
           totalOrders: acc.totalOrders + (item.totalOrders || 0),
           uniqueCustomers: acc.uniqueCustomers + (item.uniqueCustomers || 0),
@@ -236,14 +235,19 @@ export function ReportsSection() {
       });
 
       // Converter para formato esperado pelo componente
-      const normalized = filteredByPeriod.map((item: {
+      interface SalesItem {
         date: string;
         totalSales: number;
         totalOrders: number;
         averageTicket: number;
         uniqueCustomers: number;
-        channels: any;
-      }) => ({
+        channels?: {
+          salesByOrigin?: Array<{ origin: string; quantity: number; revenue: number }>;
+          ordersByChannel?: { delivery: number; counter: number; hall: number; ticket: number };
+        } | null;
+      }
+      
+      const normalized = filteredByPeriod.map((item: SalesItem) => ({
         date: item.date,
         totalSales: item.totalSales,
         totalOrders: item.totalOrders,
@@ -273,7 +277,7 @@ export function ReportsSection() {
       
       // Atualizar dashboard com os dados agregados APENAS do período selecionado
       if (filteredByPeriod.length > 0) {
-        const totals = filteredByPeriod.reduce((acc: any, item: any) => ({
+        const totals = filteredByPeriod.reduce((acc: { totalSales: number; totalOrders: number; uniqueCustomers: number }, item: SalesItem) => ({
           totalSales: acc.totalSales + (item.totalSales || 0),
           totalOrders: acc.totalOrders + (item.totalOrders || 0),
           uniqueCustomers: acc.uniqueCustomers + (item.uniqueCustomers || 0),
@@ -461,7 +465,14 @@ export function ReportsSection() {
             return itemDate >= startDateOnly && itemDate <= endDateOnly;
           });
 
-          const totals = filteredByPeriod.reduce((acc: any, item: any) => ({
+          interface PollingSalesItem {
+            date: string;
+            totalSales: number;
+            totalOrders: number;
+            uniqueCustomers: number;
+          }
+          
+          const totals = filteredByPeriod.reduce((acc: { totalSales: number; totalOrders: number; uniqueCustomers: number }, item: PollingSalesItem) => ({
             totalSales: acc.totalSales + (item.totalSales || 0),
             totalOrders: acc.totalOrders + (item.totalOrders || 0),
             uniqueCustomers: acc.uniqueCustomers + (item.uniqueCustomers || 0),
@@ -808,7 +819,7 @@ export function ReportsSection() {
       </div>
 
       {/* 🔹 Breakdown por Canal/Origem */}
-      {dailyData && dailyData.salesByOrigin && dailyData.salesByOrigin.length > 0 && (
+      {salesData.length > 0 && salesData[0]?.salesByOrigin && salesData[0].salesByOrigin.length > 0 && (
         <Card className="bg-[#141415] border-[#374151]">
           <CardHeader>
             <CardTitle className="text-white">📊 Vendas por Canal</CardTitle>
@@ -818,7 +829,7 @@ export function ReportsSection() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {dailyData.salesByOrigin.map((channel, index) => (
+              {salesData[0].salesByOrigin.map((channel, index) => (
                 <div
                   key={index}
                   className="bg-[#0f0f10] p-4 rounded-lg border border-[#374151] hover:border-[#001F05] transition-colors"
@@ -847,8 +858,8 @@ export function ReportsSection() {
             </div>
             <div className="mt-4 pt-4 border-t border-[#374151]">
               <p className="text-gray-400 text-sm text-center">
-                Total: <span className="text-white font-bold">{dailyData.salesByOrigin.reduce((sum, c) => sum + c.quantity, 0)} pedidos</span> | 
-                <span className="text-green-400 font-bold ml-1">R$ {dailyData.salesByOrigin.reduce((sum, c) => sum + c.revenue, 0).toFixed(2)}</span>
+                Total: <span className="text-white font-bold">{salesData[0].salesByOrigin.reduce((sum, c) => sum + c.quantity, 0)} pedidos</span> | 
+                <span className="text-green-400 font-bold ml-1">R$ {salesData[0].salesByOrigin.reduce((sum, c) => sum + c.revenue, 0).toFixed(2)}</span>
               </p>
             </div>
           </CardContent>
@@ -901,8 +912,8 @@ export function ReportsSection() {
             <ResponsiveContainer width="100%" height={300}>
               <BarChart
                 data={
-                  dailyData
-                    ? dailyData.topProducts.map((product) => ({
+                  salesData.length > 0 && salesData[0]?.topProducts
+                    ? salesData[0].topProducts.map((product) => ({
                         hora: product.name.substring(0, 8) + "...",
                         pedidos: product.quantity
                       }))
