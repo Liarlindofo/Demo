@@ -134,10 +134,11 @@ export function ReportsSection() {
     
     setIsLoading(true);
     
-    // Timeout de 5 segundos
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Timeout: Carregamento demorou mais de 5 segundos')), 5000)
-    );
+    // Timeout de 30 segundos para permitir processamento de dados
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 30000); // 30 segundos
     
     try {
       setErrorMsg(null);
@@ -306,17 +307,26 @@ export function ReportsSection() {
       }
 
       addToast("Dados carregados!", "success");
-    } catch (error) {
-      console.error("=== ERRO AO CARREGAR DADOS DO CACHE ===");
-      console.error("Erro completo:", error);
-      console.error("Erro message:", error instanceof Error ? error.message : String(error));
-      addToast("Erro ao carregar dados do cache", "error");
-      setErrorMsg(error instanceof Error ? error.message : "Erro ao carregar dados");
-      setSalesData([]);
-      updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
-    } finally {
-      setIsLoading(false);
-    }
+           } catch (error) {
+             clearTimeout(timeoutId);
+             
+             if (error instanceof Error && error.name === 'AbortError') {
+               console.error("=== TIMEOUT: Carregamento demorou mais de 30 segundos ===");
+               setErrorMsg('Carregamento demorou muito. Tente novamente ou verifique se há dados no banco.');
+               addToast('Carregamento demorou muito. Verifique se há dados sincronizados.', 'error');
+             } else {
+               console.error("=== ERRO AO CARREGAR DADOS ===");
+               console.error("Erro completo:", error);
+               console.error("Erro message:", error instanceof Error ? error.message : String(error));
+               addToast("Erro ao carregar dados", "error");
+               setErrorMsg(error instanceof Error ? error.message : "Erro ao carregar dados");
+             }
+             
+             setSalesData([]);
+             updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
+           } finally {
+             setIsLoading(false);
+           }
   }, [dateStart, dateEnd, selectedStore, addToast, connectedAPIs, updateDashboardData]);
 
   // 🔹 Carregar dados diários (DESABILITADO - não usado mais, dados vêm do cache)
