@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -75,6 +75,10 @@ export function ReportsSection() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [waOpen, setWaOpen] = useState(false);
   const [waPhone, setWaPhone] = useState("");
+  
+  // Cache local para evitar requisições desnecessárias (usando ref para evitar re-renders)
+  const dataCacheRef = useRef<Map<string, { data: SaiposSalesData[], timestamp: number }>>(new Map());
+  const CACHE_DURATION = 30000; // 30 segundos de cache
 
   const handlePeriodChange = (period: string) => {
     setSelectedPeriod(period);
@@ -89,16 +93,12 @@ export function ReportsSection() {
         setDateStart(subtractDays(7));
         setDateEnd(hoje);
         break;
-      case "30d":
-        setDateStart(subtractDays(30));
-        setDateEnd(hoje);
-        break;
-      case "90d":
-        setDateStart(subtractDays(90));
+      case "15d":
+        setDateStart(subtractDays(15));
         setDateEnd(hoje);
         break;
       default:
-        setDateStart(subtractDays(30));
+        setDateStart(hoje);
         setDateEnd(hoje);
     }
     
@@ -122,7 +122,24 @@ export function ReportsSection() {
 
   // 🔹 Carregar dados do cache local usando a nova rota /api/dashboard/sales
   const loadSalesData = useCallback(async () => {
+    // Validar período antes de carregar
+    const startDate = new Date(dateStart);
+    const endDate = new Date(dateEnd);
+    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    
+    if (daysDiff > 15) {
+      setErrorMsg('Período máximo permitido é de 15 dias');
+      addToast('Período máximo permitido é de 15 dias', 'error');
+      return;
+    }
+    
     setIsLoading(true);
+    
+    // Timeout de 5 segundos
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout: Carregamento demorou mais de 5 segundos')), 5000)
+    );
+    
     try {
       setErrorMsg(null);
 
@@ -135,25 +152,62 @@ export function ReportsSection() {
 
       const storeId = targetApi.name; // Usar name como storeId
 
-      // Calcular range baseado no período selecionado
-      const startDate = new Date(dateStart);
-      const endDate = new Date(dateEnd);
-      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      // Validar período máximo de 15 dias
+      const startDateObj = new Date(dateStart);
+      const endDateObj = new Date(dateEnd);
+      const daysDiffCalc = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       
+      if (daysDiffCalc > 15) {
+        throw new Error('Período máximo permitido é de 15 dias');
+      }
+      
+      // Calcular range baseado no período selecionado
       let range: string;
-      if (daysDiff <= 1) range = '1d';
-      else if (daysDiff <= 7) range = '7d';
-      else if (daysDiff <= 30) range = '30d';
-      else range = '90d';
+      if (daysDiffCalc <= 1) range = '1d';
+      else if (daysDiffCalc <= 7) range = '7d';
+      else range = '15d';
+
+      // Verificar cache local
+      const cacheKey = `${storeId}-${range}-${dateStart}-${dateEnd}`;
+      const cached = dataCacheRef.current.get(cacheKey);
+      const now = Date.now();
+      
+      if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+        console.log("📦 Usando dados do cache local");
+        setSalesData(cached.data);
+        
+        // Atualizar dashboard com dados do cache
+        const totals = cached.data.reduce((acc: any, item: any) => ({
+          totalSales: acc.totalSales + (item.totalSales || 0),
+          totalOrders: acc.totalOrders + (item.totalOrders || 0),
+          uniqueCustomers: acc.uniqueCustomers + (item.uniqueCustomers || 0),
+        }), { totalSales: 0, totalOrders: 0, uniqueCustomers: 0 });
+
+        const averageTicket = totals.totalOrders > 0 
+          ? totals.totalSales / totals.totalOrders 
+          : 0;
+
+        updateDashboardData({
+          totalSales: totals.totalSales,
+          totalOrders: totals.totalOrders,
+          averageTicket: averageTicket,
+          uniqueCustomers: totals.uniqueCustomers,
+        });
+        
+        setIsLoading(false);
+        return;
+      }
 
       console.log("📊 Carregando dados do cache local - storeId:", storeId, "range:", range, "período:", dateStart, "a", dateEnd);
 
-      const res = await fetch(`/api/dashboard/sales?storeId=${encodeURIComponent(storeId)}&range=${range}`, {
+      const fetchPromise = fetch(`/api/dashboard/sales?storeId=${encodeURIComponent(storeId)}&range=${range}`, {
         headers: { 
           'Content-Type': 'application/json'
         },
         cache: 'no-store',
       });
+      
+      const res = await Promise.race([fetchPromise, timeoutPromise]) as Response;
 
       if (!res.ok) {
         throw new Error(`Erro ao buscar dados: ${res.status}`);
@@ -203,6 +257,16 @@ export function ReportsSection() {
 
       setSalesData(normalized);
       
+      // Salvar no cache local
+      dataCacheRef.current.set(cacheKey, { data: normalized, timestamp: Date.now() });
+      // Limitar cache a 10 entradas
+      if (dataCacheRef.current.size > 10) {
+        const firstKey = dataCacheRef.current.keys().next().value;
+        if (firstKey) {
+          dataCacheRef.current.delete(firstKey);
+        }
+      }
+      
       console.log(`📅 Período selecionado: ${startDateOnly} a ${endDateOnly}`);
       console.log(`📅 Vendas encontradas no cache: ${vendas.length}`);
       console.log(`📅 Vendas filtradas pelo período: ${filteredByPeriod.length}`);
@@ -237,7 +301,7 @@ export function ReportsSection() {
         }
       }
 
-      addToast("Dados carregados do cache local!", "success");
+      addToast("Dados carregados!", "success");
     } catch (error) {
       console.error("=== ERRO AO CARREGAR DADOS DO CACHE ===");
       console.error("Erro completo:", error);
@@ -301,16 +365,30 @@ export function ReportsSection() {
         try {
           const storeId = targetApi.name;
           
-          // Calcular range baseado no período selecionado
+          // Validar período máximo de 15 dias
           const startDate = new Date(dateStart);
           const endDate = new Date(dateEnd);
           const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           
+          if (daysDiff > 15) {
+            // Manter dados atuais se período inválido
+            return {
+              storeId: selectedStore.id,
+              type: 'sales',
+              data: {
+                totalSales: dashboardData.totalSales,
+                totalOrders: dashboardData.totalOrders,
+                averageTicket: dashboardData.averageTicket,
+              },
+              timestamp: new Date().toISOString(),
+            } as RealtimeUpdate;
+          }
+          
+          // Calcular range baseado no período selecionado
           let range: string;
           if (daysDiff <= 1) range = '1d';
           else if (daysDiff <= 7) range = '7d';
-          else if (daysDiff <= 30) range = '30d';
-          else range = '90d';
+          else range = '15d';
 
           const res = await fetch(`/api/dashboard/sales?storeId=${encodeURIComponent(storeId)}&range=${range}`, {
             headers: { 'Content-Type': 'application/json' },
@@ -318,10 +396,47 @@ export function ReportsSection() {
           });
 
           if (!res.ok) {
-            throw new Error(`Erro ao buscar dados: ${res.status}`);
+            // Tentar obter mensagem de erro da resposta
+            let errorMessage = `Erro ao buscar dados: ${res.status}`;
+            try {
+              const errorData = await res.json().catch(() => null);
+              if (errorData?.error) {
+                errorMessage = errorData.error;
+              }
+            } catch {
+              // Ignorar erro ao parsear JSON
+            }
+            console.error('Erro na requisição:', errorMessage);
+            // Não lançar erro no polling - apenas manter dados atuais
+            return {
+              storeId: selectedStore.id,
+              type: 'sales',
+              data: {
+                totalSales: dashboardData.totalSales,
+                totalOrders: dashboardData.totalOrders,
+                averageTicket: dashboardData.averageTicket,
+              },
+              timestamp: new Date().toISOString(),
+            } as RealtimeUpdate;
           }
 
           const resp = await res.json();
+          
+          // Verificar se há erro na resposta
+          if (resp.error) {
+            console.error('Erro na resposta da API:', resp.error);
+            // Manter dados atuais em caso de erro
+            return {
+              storeId: selectedStore.id,
+              type: 'sales',
+              data: {
+                totalSales: dashboardData.totalSales,
+                totalOrders: dashboardData.totalOrders,
+                averageTicket: dashboardData.averageTicket,
+              },
+              timestamp: new Date().toISOString(),
+            } as RealtimeUpdate;
+          }
           const vendas = Array.isArray(resp?.data) ? resp.data : [];
           
           if (vendas.length === 0) {
@@ -459,8 +574,29 @@ export function ReportsSection() {
               <input
                 type="date"
                 value={dateStart}
+                max={getToday()}
                 onChange={(e) => {
-                  setDateStart(e.target.value);
+                  const newStartDate = e.target.value;
+                  const startDate = new Date(newStartDate);
+                  const endDate = new Date(dateEnd);
+                  const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                  
+                  if (daysDiff > 15) {
+                    addToast('Período máximo permitido é de 15 dias', 'error');
+                    // Ajustar data final automaticamente
+                    const maxEndDate = new Date(startDate);
+                    maxEndDate.setDate(maxEndDate.getDate() + 14);
+                    if (maxEndDate <= new Date()) {
+                      setDateEnd(maxEndDate.toISOString().split('T')[0]);
+                    }
+                  }
+                  
+                  if (startDate > endDate) {
+                    addToast('Data inicial deve ser menor ou igual à data final', 'error');
+                    return;
+                  }
+                  
+                  setDateStart(newStartDate);
                 }}
                 className="px-3 py-2 bg-[#141415] border border-[#374151] rounded-md text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#001F05]"
               />
@@ -470,8 +606,24 @@ export function ReportsSection() {
               <input
                 type="date"
                 value={dateEnd}
+                max={getToday()}
                 onChange={(e) => {
-                  setDateEnd(e.target.value);
+                  const newEndDate = e.target.value;
+                  const startDate = new Date(dateStart);
+                  const endDate = new Date(newEndDate);
+                  const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                  
+                  if (daysDiff > 15) {
+                    addToast('Período máximo permitido é de 15 dias', 'error');
+                    return;
+                  }
+                  
+                  if (endDate < startDate) {
+                    addToast('Data final deve ser maior ou igual à data inicial', 'error');
+                    return;
+                  }
+                  
+                  setDateEnd(newEndDate);
                 }}
                 className="px-3 py-2 bg-[#141415] border border-[#374151] rounded-md text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#001F05]"
               />
@@ -505,28 +657,16 @@ export function ReportsSection() {
               7D
             </Button>
             <Button
-              variant={selectedPeriod === "30d" ? "default" : "ghost"}
+              variant={selectedPeriod === "15d" ? "default" : "ghost"}
               size="sm"
-              onClick={() => handlePeriodChange("30d")}
+              onClick={() => handlePeriodChange("15d")}
               className={`${
-                selectedPeriod === "30d"
+                selectedPeriod === "15d"
                   ? "bg-[#001F05] text-white"
                   : "text-gray-400 hover:text-white"
               }`}
             >
-              30D
-            </Button>
-            <Button
-              variant={selectedPeriod === "90d" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => handlePeriodChange("90d")}
-              className={`${
-                selectedPeriod === "90d"
-                  ? "bg-[#001F05] text-white"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              90D
+              15D
             </Button>
           </div>
 
