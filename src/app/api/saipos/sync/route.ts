@@ -259,49 +259,100 @@ export async function POST(request: Request) {
           if (sales.length > 0) {
             const normalized = normalizeSalesResponse(sales);
 
-            for (const data of normalized) {
-              try {
-                const date = new Date(data.date);
-                const channels = data.salesByOrigin
-                  ? {
-                      salesByOrigin: data.salesByOrigin,
-                      ordersByChannel: data.ordersByChannel,
-                    }
-                  : null;
+            // Usar transação para salvar múltiplos registros de uma vez
+            // Isso evita abrir muitas conexões simultaneamente
+            try {
+              await db.$transaction(
+                normalized.map((data) => {
+                  const date = new Date(data.date);
+                  const channels = data.salesByOrigin
+                    ? {
+                        salesByOrigin: data.salesByOrigin,
+                        ordersByChannel: data.ordersByChannel,
+                      }
+                    : null;
 
-                await db.salesDaily.upsert({
-                  where: {
-                    storeId_date: {
+                  return db.salesDaily.upsert({
+                    where: {
+                      storeId_date: {
+                        storeId: targetStoreId,
+                        date: date,
+                      },
+                    },
+                    create: {
                       storeId: targetStoreId,
                       date: date,
+                      totalOrders: data.totalOrders,
+                      totalSales: new Prisma.Decimal(data.totalSales),
+                      averageTicket: data.averageTicket
+                        ? new Prisma.Decimal(data.averageTicket)
+                        : null,
+                      uniqueCustomers: data.uniqueCustomers || null,
+                      channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
                     },
-                  },
-                  create: {
-                    storeId: targetStoreId,
-                    date: date,
-                    totalOrders: data.totalOrders,
-                    totalSales: new Prisma.Decimal(data.totalSales),
-                    averageTicket: data.averageTicket
-                      ? new Prisma.Decimal(data.averageTicket)
-                      : null,
-                    uniqueCustomers: data.uniqueCustomers || null,
-                    channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
-                  },
-                  update: {
-                    totalOrders: data.totalOrders,
-                    totalSales: new Prisma.Decimal(data.totalSales),
-                    averageTicket: data.averageTicket
-                      ? new Prisma.Decimal(data.averageTicket)
-                      : null,
-                    uniqueCustomers: data.uniqueCustomers || null,
-                    channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
-                    updatedAt: new Date(),
-                  },
-                });
+                    update: {
+                      totalOrders: data.totalOrders,
+                      totalSales: new Prisma.Decimal(data.totalSales),
+                      averageTicket: data.averageTicket
+                        ? new Prisma.Decimal(data.averageTicket)
+                        : null,
+                      uniqueCustomers: data.uniqueCustomers || null,
+                      channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                      updatedAt: new Date(),
+                    },
+                  });
+                }),
+                {
+                  timeout: 30000, // 30 segundos de timeout
+                }
+              );
+              syncedCount += normalized.length;
+            } catch (error) {
+              console.error(`Erro ao salvar lote de dados:`, error);
+              // Se a transação falhar, tentar salvar individualmente
+              for (const data of normalized) {
+                try {
+                  const date = new Date(data.date);
+                  const channels = data.salesByOrigin
+                    ? {
+                        salesByOrigin: data.salesByOrigin,
+                        ordersByChannel: data.ordersByChannel,
+                      }
+                    : null;
 
-                syncedCount++;
-              } catch (error) {
-                console.error(`Erro ao salvar dados para ${data.date}:`, error);
+                  await db.salesDaily.upsert({
+                    where: {
+                      storeId_date: {
+                        storeId: targetStoreId,
+                        date: date,
+                      },
+                    },
+                    create: {
+                      storeId: targetStoreId,
+                      date: date,
+                      totalOrders: data.totalOrders,
+                      totalSales: new Prisma.Decimal(data.totalSales),
+                      averageTicket: data.averageTicket
+                        ? new Prisma.Decimal(data.averageTicket)
+                        : null,
+                      uniqueCustomers: data.uniqueCustomers || null,
+                      channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                    },
+                    update: {
+                      totalOrders: data.totalOrders,
+                      totalSales: new Prisma.Decimal(data.totalSales),
+                      averageTicket: data.averageTicket
+                        ? new Prisma.Decimal(data.averageTicket)
+                        : null,
+                      uniqueCustomers: data.uniqueCustomers || null,
+                      channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                      updatedAt: new Date(),
+                    },
+                  });
+                  syncedCount++;
+                } catch (individualError) {
+                  console.error(`Erro ao salvar dados para ${data.date}:`, individualError);
+                }
               }
             }
           }
@@ -355,60 +406,124 @@ export async function POST(request: Request) {
         });
       }
 
-      // Fazer UPSERT em sales_daily
-      for (const data of normalized) {
-        try {
-          const date = new Date(data.date);
-          const channels = data.salesByOrigin
-            ? {
-                salesByOrigin: data.salesByOrigin,
-                ordersByChannel: data.ordersByChannel,
-              }
-            : null;
+      // Usar transação para salvar múltiplos registros de uma vez
+      // Isso evita abrir muitas conexões simultaneamente
+      try {
+        await db.$transaction(
+          normalized.map((data) => {
+            const date = new Date(data.date);
+            const channels = data.salesByOrigin
+              ? {
+                  salesByOrigin: data.salesByOrigin,
+                  ordersByChannel: data.ordersByChannel,
+                }
+              : null;
 
-          const upsertResult = await db.salesDaily.upsert({
-            where: {
-              storeId_date: {
+            return db.salesDaily.upsert({
+              where: {
+                storeId_date: {
+                  storeId: targetStoreId,
+                  date: date,
+                },
+              },
+              create: {
                 storeId: targetStoreId,
                 date: date,
+                totalOrders: data.totalOrders,
+                totalSales: new Prisma.Decimal(data.totalSales),
+                averageTicket: data.averageTicket
+                  ? new Prisma.Decimal(data.averageTicket)
+                  : null,
+                uniqueCustomers: data.uniqueCustomers || null,
+                channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
               },
-            },
-            create: {
-              storeId: targetStoreId,
-              date: date,
-              totalOrders: data.totalOrders,
-              totalSales: new Prisma.Decimal(data.totalSales),
-              averageTicket: data.averageTicket
-                ? new Prisma.Decimal(data.averageTicket)
-                : null,
-              uniqueCustomers: data.uniqueCustomers || null,
-              channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
-            },
-            update: {
-              totalOrders: data.totalOrders,
-              totalSales: new Prisma.Decimal(data.totalSales),
-              averageTicket: data.averageTicket
-                ? new Prisma.Decimal(data.averageTicket)
-                : null,
-              uniqueCustomers: data.uniqueCustomers || null,
-              channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
-              updatedAt: new Date(),
-            },
-          });
-
-          if (syncedCount === 0) {
-            console.log(`✅ Primeiro registro salvo:`, {
-              storeId: upsertResult.storeId,
-              date: upsertResult.date,
-              totalSales: upsertResult.totalSales,
-              totalOrders: upsertResult.totalOrders,
+              update: {
+                totalOrders: data.totalOrders,
+                totalSales: new Prisma.Decimal(data.totalSales),
+                averageTicket: data.averageTicket
+                  ? new Prisma.Decimal(data.averageTicket)
+                  : null,
+                uniqueCustomers: data.uniqueCustomers || null,
+                channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                updatedAt: new Date(),
+              },
             });
+          }),
+          {
+            timeout: 30000, // 30 segundos de timeout
           }
+        );
+        syncedCount += normalized.length;
+        
+        if (normalized.length > 0) {
+          console.log(`✅ ${normalized.length} registros salvos em transação`);
+        }
+      } catch (error) {
+        console.error(`Erro ao salvar lote de dados:`, error);
+        // Se a transação falhar, tentar salvar individualmente com retry
+        for (const data of normalized) {
+          let retries = 3;
+          while (retries > 0) {
+            try {
+              const date = new Date(data.date);
+              const channels = data.salesByOrigin
+                ? {
+                    salesByOrigin: data.salesByOrigin,
+                    ordersByChannel: data.ordersByChannel,
+                  }
+                : null;
 
-          syncedCount++;
-        } catch (error) {
-          console.error(`Erro ao salvar dados para ${data.date}:`, error);
-          // Continuar mesmo com erro - não quebrar a sincronização
+              const upsertResult = await db.salesDaily.upsert({
+                where: {
+                  storeId_date: {
+                    storeId: targetStoreId,
+                    date: date,
+                  },
+                },
+                create: {
+                  storeId: targetStoreId,
+                  date: date,
+                  totalOrders: data.totalOrders,
+                  totalSales: new Prisma.Decimal(data.totalSales),
+                  averageTicket: data.averageTicket
+                    ? new Prisma.Decimal(data.averageTicket)
+                    : null,
+                  uniqueCustomers: data.uniqueCustomers || null,
+                  channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                },
+                update: {
+                  totalOrders: data.totalOrders,
+                  totalSales: new Prisma.Decimal(data.totalSales),
+                  averageTicket: data.averageTicket
+                    ? new Prisma.Decimal(data.averageTicket)
+                    : null,
+                  uniqueCustomers: data.uniqueCustomers || null,
+                  channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                  updatedAt: new Date(),
+                },
+              });
+
+              if (syncedCount === 0) {
+                console.log(`✅ Primeiro registro salvo:`, {
+                  storeId: upsertResult.storeId,
+                  date: upsertResult.date,
+                  totalSales: upsertResult.totalSales,
+                  totalOrders: upsertResult.totalOrders,
+                });
+              }
+
+              syncedCount++;
+              break; // Sucesso, sair do loop de retry
+            } catch (individualError) {
+              retries--;
+              if (retries === 0) {
+                console.error(`Erro ao salvar dados para ${data.date} após 3 tentativas:`, individualError);
+              } else {
+                console.warn(`Tentativa ${3 - retries}/3 para salvar ${data.date}, aguardando...`);
+                await sleep(1000); // Aguardar 1 segundo antes de tentar novamente
+              }
+            }
+          }
         }
       }
     }

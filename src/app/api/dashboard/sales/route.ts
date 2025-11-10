@@ -79,7 +79,8 @@ export async function GET(request: Request) {
     
     let salesData;
     try {
-      salesData = await db.salesDaily.findMany({
+      // Adicionar timeout para evitar travamento do pool
+      const queryPromise = db.salesDaily.findMany({
         where: {
           storeId: storeId,
           date: {
@@ -101,6 +102,12 @@ export async function GET(request: Request) {
         // Limitar resultados para períodos maiores
         take: range === "15d" ? 15 : undefined,
       });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Query timeout após 20 segundos")), 20000)
+      );
+
+      salesData = await Promise.race([queryPromise, timeoutPromise]);
       console.log(`📊 Dados encontrados no período: ${salesData.length} registros`);
       if (salesData.length > 0) {
         console.log(`📊 Primeiro registro:`, {

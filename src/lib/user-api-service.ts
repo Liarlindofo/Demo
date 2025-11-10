@@ -1,7 +1,8 @@
-import { PrismaClient } from '@prisma/client'
 import { SaiposAPIService } from '@/lib/saipos-api'
+import { db } from '@/lib/db'
 
-const prisma = new PrismaClient()
+// Usar a mesma instância do PrismaClient para evitar vazamento de conexões
+const prisma = db
 
 // Verificar se DATABASE_URL está configurada
 if (!process.env.DATABASE_URL) {
