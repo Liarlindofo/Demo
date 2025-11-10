@@ -29,29 +29,35 @@ export async function GET(request: Request) {
     today.setHours(23, 59, 59, 999); // Fim do dia de hoje
     
     let startDate: Date;
+    let endDate: Date = today;
+    
     switch (range) {
       case "1d":
         // Apenas hoje
         startDate = new Date(today);
         startDate.setHours(0, 0, 0, 0);
+        endDate = today;
         break;
       case "7d":
         // Últimos 7 dias incluindo hoje (6 dias atrás + hoje = 7 dias)
         startDate = new Date(today);
         startDate.setDate(startDate.getDate() - 6);
         startDate.setHours(0, 0, 0, 0);
+        endDate = today;
         break;
       case "15d":
         // Últimos 15 dias incluindo hoje (14 dias atrás + hoje = 15 dias)
         startDate = new Date(today);
         startDate.setDate(startDate.getDate() - 14);
         startDate.setHours(0, 0, 0, 0);
+        endDate = today;
         break;
       default:
         // Default: últimos 7 dias
         startDate = new Date(today);
         startDate.setDate(startDate.getDate() - 6);
         startDate.setHours(0, 0, 0, 0);
+        endDate = today;
     }
 
     // Buscar dados do cache com otimização
@@ -96,7 +102,7 @@ export async function GET(request: Request) {
           storeId: storeId,
           date: {
             gte: startDate,
-            lte: today,
+            lte: endDate,
           },
         },
         select: {
@@ -134,14 +140,82 @@ export async function GET(request: Request) {
           totalOrders: salesData[salesData.length - 1].totalOrders,
         });
       } else {
-        console.warn(`⚠️ NENHUM DADO ENCONTRADO para storeId "${storeId}" no período ${startDate.toISOString().split('T')[0]} até ${today.toISOString().split('T')[0]}`);
+        console.warn(`⚠️ NENHUM DADO ENCONTRADO para storeId "${storeId}" no período ${startDate.toISOString().split('T')[0]} até ${endDate.toISOString().split('T')[0]}`);
         console.warn(`⚠️ Total de registros no banco para este storeId: ${totalRecords}`);
         if (totalRecords > 0 && allRecords.length > 0) {
-          console.warn(`⚠️ Mas há ${totalRecords} registros no banco! Verifique se as datas estão corretas.`);
+          console.warn(`⚠️ Mas há ${totalRecords} registros no banco! Buscando dados mais recentes disponíveis...`);
           console.warn(`⚠️ Últimos registros encontrados:`, allRecords.map(r => ({
             date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date,
             totalOrders: r.totalOrders
           })));
+          
+          // Se não encontrou dados no período solicitado, buscar os dados mais recentes disponíveis
+          const mostRecentDate = allRecords[0]?.date;
+          if (mostRecentDate) {
+            const recentDate = mostRecentDate instanceof Date ? mostRecentDate : new Date(mostRecentDate);
+            recentDate.setHours(23, 59, 59, 999);
+            
+            // Para range "1d", buscar apenas o último dia com dados
+            // Para outros ranges, buscar os últimos N dias a partir do último dia com dados
+            let fallbackStartDate: Date;
+            if (range === "1d") {
+              fallbackStartDate = new Date(recentDate);
+              fallbackStartDate.setHours(0, 0, 0, 0);
+            } else if (range === "7d") {
+              fallbackStartDate = new Date(recentDate);
+              fallbackStartDate.setDate(fallbackStartDate.getDate() - 6);
+              fallbackStartDate.setHours(0, 0, 0, 0);
+            } else if (range === "15d") {
+              fallbackStartDate = new Date(recentDate);
+              fallbackStartDate.setDate(fallbackStartDate.getDate() - 14);
+              fallbackStartDate.setHours(0, 0, 0, 0);
+            } else {
+              fallbackStartDate = new Date(recentDate);
+              fallbackStartDate.setDate(fallbackStartDate.getDate() - 6);
+              fallbackStartDate.setHours(0, 0, 0, 0);
+            }
+            
+            console.log(`📊 Buscando dados mais recentes disponíveis: ${fallbackStartDate.toISOString().split('T')[0]} até ${recentDate.toISOString().split('T')[0]}`);
+            
+            try {
+              const fallbackQueryPromise = db.salesDaily.findMany({
+                where: {
+                  storeId: storeId,
+                  date: {
+                    gte: fallbackStartDate,
+                    lte: recentDate,
+                  },
+                },
+                select: {
+                  date: true,
+                  totalSales: true,
+                  totalOrders: true,
+                  averageTicket: true,
+                  uniqueCustomers: true,
+                  channels: true,
+                },
+                orderBy: {
+                  date: "asc",
+                },
+              });
+              
+              const fallbackTimeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("Query timeout após 20 segundos")), 20000)
+              );
+              
+              salesData = await Promise.race([fallbackQueryPromise, fallbackTimeoutPromise]);
+              console.log(`📊 Dados encontrados no período alternativo: ${salesData.length} registros`);
+              
+              // Atualizar startDate e endDate para refletir os dados encontrados
+              if (salesData.length > 0) {
+                startDate = fallbackStartDate;
+                endDate = recentDate;
+              }
+            } catch (fallbackError) {
+              console.error("❌ Erro ao buscar dados alternativos:", fallbackError);
+              // Continuar com salesData vazio
+            }
+          }
         }
       }
     } catch (dbError) {
@@ -257,7 +331,7 @@ export async function GET(request: Request) {
       },
       period: {
         start: startDate.toISOString().split("T")[0],
-        end: today.toISOString().split("T")[0],
+        end: endDate.toISOString().split("T")[0],
         range: range,
       },
     });

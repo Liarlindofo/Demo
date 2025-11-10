@@ -85,6 +85,8 @@ export function ReportsSection() {
     
     switch (period) {
       case "1d":
+        // Para "1d", buscar o último dia com dados disponíveis
+        // Se não houver dados para hoje, buscar o último dia disponível
         setDateStart(hoje);
         setDateEnd(hoje);
         break;
