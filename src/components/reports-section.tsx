@@ -204,7 +204,28 @@ export function ReportsSection() {
 
       console.log("📊 Carregando dados do cache local - storeId:", storeId, "range:", range, "período:", dateStart, "a", dateEnd);
 
-      const res = await fetch(`/api/dashboard/sales?storeId=${encodeURIComponent(storeId)}&range=${range}`, {
+      // Extrair apenas a data (YYYY-MM-DD) das strings de data
+      const startDateOnly = dateStart.split('T')[0];
+      const endDateOnly = dateEnd.split('T')[0];
+
+      // Quando for apenas 1 dia, enviar a data específica para a API
+      const urlParams = new URLSearchParams({
+        storeId: storeId,
+        range: range,
+      });
+      
+      // Se for apenas 1 dia, enviar a data específica
+      if (range === '1d' && startDateOnly === endDateOnly) {
+        urlParams.append('date', startDateOnly);
+        console.log(`📊 Enviando data específica para API: ${startDateOnly}`);
+      } else {
+        // Para ranges maiores, enviar as datas também para garantir precisão
+        urlParams.append('startDate', startDateOnly);
+        urlParams.append('endDate', endDateOnly);
+        console.log(`📊 Enviando range de datas para API: ${startDateOnly} até ${endDateOnly}`);
+      }
+
+      const res = await fetch(`/api/dashboard/sales?${urlParams.toString()}`, {
         headers: { 
           'Content-Type': 'application/json'
         },
@@ -235,9 +256,7 @@ export function ReportsSection() {
       }
 
       // Filtrar apenas vendas do período selecionado (dateStart a dateEnd)
-      const startDateOnly = dateStart.split('T')[0];
-      const endDateOnly = dateEnd.split('T')[0];
-      
+      // startDateOnly e endDateOnly já foram calculados acima
       const filteredByPeriod = vendas.filter((item: { date: string }) => {
         const itemDate = item.date?.split('T')[0] || item.date;
         return itemDate >= startDateOnly && itemDate <= endDateOnly;

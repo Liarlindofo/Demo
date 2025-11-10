@@ -10,8 +10,11 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const storeId = url.searchParams.get("storeId");
     const range = url.searchParams.get("range") || "7d"; // 1d, 7d, 15d (máximo)
+    const specificDate = url.searchParams.get("date"); // Data específica quando range=1d
+    const startDateParam = url.searchParams.get("startDate"); // Data inicial quando fornecida
+    const endDateParam = url.searchParams.get("endDate"); // Data final quando fornecida
 
-    console.log("📊 Parâmetros recebidos:", { storeId, range });
+    console.log("📊 Parâmetros recebidos:", { storeId, range, specificDate, startDateParam, endDateParam });
 
     if (!storeId) {
       console.error("❌ storeId não fornecido");
@@ -21,43 +24,57 @@ export async function GET(request: Request) {
       );
     }
 
-    // Calcular datas baseado no range
-    // IMPORTANTE: Para range "1d", buscar apenas o dia de hoje
-    // Para "7d", buscar últimos 7 dias (incluindo hoje)
-    // Para "15d", buscar últimos 15 dias (incluindo hoje)
+    // Calcular datas baseado no range ou datas específicas fornecidas
     const today = new Date();
     today.setHours(23, 59, 59, 999); // Fim do dia de hoje
     
     let startDate: Date;
     let endDate: Date = today;
     
-    switch (range) {
-      case "1d":
-        // Apenas hoje
-        startDate = new Date(today);
-        startDate.setHours(0, 0, 0, 0);
-        endDate = today;
-        break;
-      case "7d":
-        // Últimos 7 dias incluindo hoje (6 dias atrás + hoje = 7 dias)
-        startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - 6);
-        startDate.setHours(0, 0, 0, 0);
-        endDate = today;
-        break;
-      case "15d":
-        // Últimos 15 dias incluindo hoje (14 dias atrás + hoje = 15 dias)
-        startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - 14);
-        startDate.setHours(0, 0, 0, 0);
-        endDate = today;
-        break;
-      default:
-        // Default: últimos 7 dias
-        startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - 6);
-        startDate.setHours(0, 0, 0, 0);
-        endDate = today;
+    // Se datas específicas foram fornecidas, usar elas
+    if (startDateParam && endDateParam) {
+      startDate = new Date(startDateParam);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(endDateParam);
+      endDate.setHours(23, 59, 59, 999);
+      console.log(`📊 Usando datas específicas fornecidas: ${startDate.toISOString().split('T')[0]} até ${endDate.toISOString().split('T')[0]}`);
+    } else if (specificDate) {
+      // Se uma data específica foi fornecida (range=1d com data específica)
+      startDate = new Date(specificDate);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(specificDate);
+      endDate.setHours(23, 59, 59, 999);
+      console.log(`📊 Usando data específica fornecida: ${specificDate}`);
+    } else {
+      // Calcular datas baseado no range (comportamento padrão)
+      switch (range) {
+        case "1d":
+          // Apenas hoje
+          startDate = new Date(today);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = today;
+          break;
+        case "7d":
+          // Últimos 7 dias incluindo hoje (6 dias atrás + hoje = 7 dias)
+          startDate = new Date(today);
+          startDate.setDate(startDate.getDate() - 6);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = today;
+          break;
+        case "15d":
+          // Últimos 15 dias incluindo hoje (14 dias atrás + hoje = 15 dias)
+          startDate = new Date(today);
+          startDate.setDate(startDate.getDate() - 14);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = today;
+          break;
+        default:
+          // Default: últimos 7 dias
+          startDate = new Date(today);
+          startDate.setDate(startDate.getDate() - 6);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = today;
+      }
     }
 
     // Buscar dados do cache com otimização
