@@ -36,7 +36,17 @@ export function interceptFetchErrors() {
       
       // Se a resposta não for OK, capturar como erro
       if (!response.ok) {
-        const url = typeof args[0] === 'string' ? args[0] : args[0].url;
+        // Extrair URL de forma segura
+        let url: string = '';
+        const firstArg = args[0];
+        if (typeof firstArg === 'string') {
+          url = firstArg;
+        } else if (firstArg instanceof URL) {
+          url = firstArg.toString();
+        } else if (firstArg instanceof Request) {
+          url = firstArg.url;
+        }
+        
         let errorMessage = `Erro ${response.status}: ${response.statusText}`;
         let errorDetails = '';
         
@@ -64,7 +74,16 @@ export function interceptFetchErrors() {
       
       return response;
     } catch (error) {
-      const url = typeof args[0] === 'string' ? args[0] : args[0].url;
+      // Extrair URL de forma segura
+      let url: string = '';
+      const firstArg = args[0];
+      if (typeof firstArg === 'string') {
+        url = firstArg;
+      } else if (firstArg instanceof URL) {
+        url = firstArg.toString();
+      } else if (firstArg instanceof Request) {
+        url = firstArg.url;
+      }
       
       handleError({
         message: error instanceof Error ? error.message : 'Erro desconhecido na requisição',
