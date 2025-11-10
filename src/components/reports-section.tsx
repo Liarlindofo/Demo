@@ -89,11 +89,13 @@ export function ReportsSection() {
         setDateEnd(hoje);
         break;
       case "7d":
-        setDateStart(subtractDays(7));
+        // Últimos 7 dias incluindo hoje (6 dias atrás + hoje = 7 dias)
+        setDateStart(subtractDays(6));
         setDateEnd(hoje);
         break;
       case "15d":
-        setDateStart(subtractDays(15));
+        // Últimos 15 dias incluindo hoje (14 dias atrás + hoje = 15 dias)
+        setDateStart(subtractDays(14));
         setDateEnd(hoje);
         break;
       default:
@@ -220,10 +222,13 @@ export function ReportsSection() {
       const vendas = Array.isArray(resp?.data) ? resp.data : [];
 
       if (vendas.length === 0) {
-        console.log('⚠️ Nenhuma venda encontrada no cache para o período');
+        console.warn('⚠️ Nenhuma venda encontrada no cache para o período');
+        console.warn('⚠️ StoreId usado:', storeId);
+        console.warn('⚠️ Período:', dateStart, 'a', dateEnd);
+        console.warn('⚠️ Resposta completa:', resp);
         setSalesData([]);
         updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
-        addToast('Sem vendas no período selecionado', 'info');
+        addToast(`Sem vendas no período selecionado. StoreId: ${storeId}`, 'info');
         return;
       }
 

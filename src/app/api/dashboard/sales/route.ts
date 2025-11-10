@@ -22,25 +22,36 @@ export async function GET(request: Request) {
     }
 
     // Calcular datas baseado no range
+    // IMPORTANTE: Para range "1d", buscar apenas o dia de hoje
+    // Para "7d", buscar últimos 7 dias (incluindo hoje)
+    // Para "15d", buscar últimos 15 dias (incluindo hoje)
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setHours(23, 59, 59, 999); // Fim do dia de hoje
     
     let startDate: Date;
     switch (range) {
       case "1d":
+        // Apenas hoje
         startDate = new Date(today);
+        startDate.setHours(0, 0, 0, 0);
         break;
       case "7d":
+        // Últimos 7 dias incluindo hoje (6 dias atrás + hoje = 7 dias)
         startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - 7);
+        startDate.setDate(startDate.getDate() - 6);
+        startDate.setHours(0, 0, 0, 0);
         break;
       case "15d":
+        // Últimos 15 dias incluindo hoje (14 dias atrás + hoje = 15 dias)
         startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - 15);
+        startDate.setDate(startDate.getDate() - 14);
+        startDate.setHours(0, 0, 0, 0);
         break;
       default:
+        // Default: últimos 7 dias
         startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - 7);
+        startDate.setDate(startDate.getDate() - 6);
+        startDate.setHours(0, 0, 0, 0);
     }
 
     // Buscar dados do cache com otimização
@@ -99,8 +110,7 @@ export async function GET(request: Request) {
         orderBy: {
           date: "asc",
         },
-        // Limitar resultados para períodos maiores
-        take: range === "15d" ? 15 : undefined,
+        // Não limitar resultados - buscar todos os registros do período
       });
 
       const timeoutPromise = new Promise<never>((_, reject) =>
@@ -109,12 +119,30 @@ export async function GET(request: Request) {
 
       salesData = await Promise.race([queryPromise, timeoutPromise]);
       console.log(`📊 Dados encontrados no período: ${salesData.length} registros`);
+      console.log(`📊 Período de busca: ${startDate.toISOString().split('T')[0]} até ${today.toISOString().split('T')[0]}`);
+      console.log(`📊 StoreId usado na busca: "${storeId}"`);
+      
       if (salesData.length > 0) {
         console.log(`📊 Primeiro registro:`, {
           date: salesData[0].date,
           totalSales: salesData[0].totalSales,
           totalOrders: salesData[0].totalOrders,
         });
+        console.log(`📊 Último registro:`, {
+          date: salesData[salesData.length - 1].date,
+          totalSales: salesData[salesData.length - 1].totalSales,
+          totalOrders: salesData[salesData.length - 1].totalOrders,
+        });
+      } else {
+        console.warn(`⚠️ NENHUM DADO ENCONTRADO para storeId "${storeId}" no período ${startDate.toISOString().split('T')[0]} até ${today.toISOString().split('T')[0]}`);
+        console.warn(`⚠️ Total de registros no banco para este storeId: ${totalRecords}`);
+        if (totalRecords > 0 && allRecords.length > 0) {
+          console.warn(`⚠️ Mas há ${totalRecords} registros no banco! Verifique se as datas estão corretas.`);
+          console.warn(`⚠️ Últimos registros encontrados:`, allRecords.map(r => ({
+            date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date,
+            totalOrders: r.totalOrders
+          })));
+        }
       }
     } catch (dbError) {
       console.error("❌ Erro ao buscar dados do banco:", dbError);
