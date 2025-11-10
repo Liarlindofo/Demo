@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { GlobalErrorHandler } from '@/components/global-error-handler';
 
 interface Store {
   id: string;
@@ -295,6 +296,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setDashboardData,
       updateDashboardData
     }}>
+      <GlobalErrorHandler />
       {children}
     </AppContext.Provider>
   );

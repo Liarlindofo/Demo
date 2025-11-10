@@ -141,58 +141,12 @@ class RealtimeService {
     });
   }
 
-  // Simular dados em tempo real para desenvolvimento
-  startMockUpdates(storeId: string): void {
-    // Verificar se estamos no lado do cliente
-    if (typeof window === 'undefined') {
-      console.log('⚠️ startMockUpdates chamado no servidor, ignorando...');
-      return;
-    }
-
-    console.log(`🚀 Iniciando mock de atualizações em tempo real para a loja: ${storeId}`);
-    
-    // Limpar interval anterior se existir
-    if (this.mockInterval) {
-      clearInterval(this.mockInterval);
-    }
-
-    // Simular atualizações a cada 5 segundos
-    this.mockInterval = window.setInterval(() => {
-      const updateType = ['sales', 'orders', 'customers'][Math.floor(Math.random() * 3)];
-      let updateData: Record<string, unknown> = {};
-
-      switch (updateType) {
-        case 'sales':
-          updateData = { 
-            totalSales: Math.floor(Math.random() * 1000) + 2000,
-            timestamp: new Date().toISOString()
-          };
-          break;
-        case 'orders':
-          updateData = { 
-            totalOrders: Math.floor(Math.random() * 50) + 30,
-            timestamp: new Date().toISOString()
-          };
-          break;
-        case 'customers':
-          updateData = { 
-            uniqueCustomers: Math.floor(Math.random() * 20) + 10,
-            timestamp: new Date().toISOString()
-          };
-          break;
-      }
-
-      const update: RealtimeUpdate = {
-        storeId,
-        type: updateType as 'sales' | 'orders' | 'customers',
-        data: updateData,
-        timestamp: new Date().toISOString(),
-      };
-
-      console.log(`📊 Enviando atualização ${updateType}:`, update);
-      this.notifyListeners(update);
-    }, 5000); // Envia uma atualização a cada 5 segundos
-  }
+  // Método mockado REMOVIDO - todos os dados devem ser reais
+  // Não usar dados mockados em nenhuma circunstância
+  // Todos os dados devem vir da API Saipos ou do banco de dados
+  // startMockUpdates(storeId: string): void {
+  //   REMOVIDO - não usar dados mockados
+  // }
 
   // Polling (fallback) a cada N ms
   startPolling(fetchUpdate: () => Promise<RealtimeUpdate>, intervalMs = 60000): void {

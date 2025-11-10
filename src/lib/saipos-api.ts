@@ -259,80 +259,9 @@ export class SaiposAPIService {
     }
   }
 
-  // Método para obter dados mockados de vendas (para teste)
-  private getMockSalesData(): SaiposSalesData[] {
-    return [
-      {
-        date: "2025-01-01",
-        totalSales: 4250.50,
-        totalOrders: 45,
-        averageTicket: 94.46,
-        uniqueCustomers: 38,
-        totalRevenue: 4250.50,
-        deliverySales: 2100.00,
-        counterSales: 1200.50,
-        hallSales: 650.00,
-        ticketSales: 300.00,
-        ordersByChannel: {
-          delivery: 22,
-          counter: 15,
-          hall: 6,
-          ticket: 2
-        },
-        topProducts: [
-          { name: "Pizza Margherita", quantity: 8, revenue: 160.00 },
-          { name: "Hambúrguer Clássico", quantity: 12, revenue: 240.00 },
-          { name: "Coca-Cola 350ml", quantity: 20, revenue: 100.00 }
-        ]
-      },
-      {
-        date: "2025-01-02",
-        totalSales: 3890.75,
-        totalOrders: 52,
-        averageTicket: 74.82,
-        uniqueCustomers: 41,
-        totalRevenue: 3890.75,
-        deliverySales: 1950.25,
-        counterSales: 1100.00,
-        hallSales: 640.50,
-        ticketSales: 200.00,
-        ordersByChannel: {
-          delivery: 25,
-          counter: 18,
-          hall: 7,
-          ticket: 2
-        },
-        topProducts: [
-          { name: "Pizza Portuguesa", quantity: 6, revenue: 150.00 },
-          { name: "X-Burger", quantity: 10, revenue: 200.00 },
-          { name: "Guaraná 2L", quantity: 15, revenue: 75.00 }
-        ]
-      },
-      {
-        date: "2025-01-03",
-        totalSales: 4520.30,
-        totalOrders: 48,
-        averageTicket: 94.17,
-        uniqueCustomers: 35,
-        totalRevenue: 4520.30,
-        deliverySales: 2300.80,
-        counterSales: 1300.50,
-        hallSales: 720.00,
-        ticketSales: 199.00,
-        ordersByChannel: {
-          delivery: 24,
-          counter: 16,
-          hall: 6,
-          ticket: 2
-        },
-        topProducts: [
-          { name: "Pizza Calabresa", quantity: 9, revenue: 180.00 },
-          { name: "X-Tudo", quantity: 8, revenue: 160.00 },
-          { name: "Suco de Laranja", quantity: 12, revenue: 60.00 }
-        ]
-      }
-    ];
-  }
+  // Métodos mockados REMOVIDOS - todos os dados devem ser reais
+  // Não usar dados mockados em nenhuma circunstância
+  // Todos os dados devem vir da API Saipos ou do banco de dados
 
   // Método para converter dados da API Saipos para o formato interno
   private convertSalesData(): SaiposSalesData[] {
@@ -371,56 +300,15 @@ export class SaiposAPIService {
     } catch (error) {
       console.error('❌ Erro ao obter lojas:', error);
       
-      // Em caso de erro, retornar dados mockados para teste
-      console.log('⚠️ Usando dados mockados para teste');
-      return this.getMockStores();
+      // SEMPRE lançar erro - nunca retornar dados mockados
+      // Todos os dados devem ser reais, vindos da API ou do banco de dados
+      throw error;
     }
   }
 
-  // Método para obter dados mockados de lojas (para teste)
-  private getMockStores(): SaiposStore[] {
-    return [
-      {
-        id: "1",
-        name: "Restaurante Central",
-        address: "Rua Principal, 123 - Centro",
-        phone: "(11) 99999-9999",
-        status: 'active',
-        cnpj: "12.345.678/0001-90",
-        city: "São Paulo",
-        state: "SP",
-        zipCode: "01234-567",
-        lastSync: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-        apiId: "saipos-1"
-      },
-      {
-        id: "2",
-        name: "Pizzaria do João",
-        address: "Av. Comercial, 456 - Vila Nova",
-        phone: "(11) 88888-8888",
-        status: 'active',
-        cnpj: "98.765.432/0001-10",
-        city: "São Paulo",
-        state: "SP",
-        zipCode: "04567-890",
-        lastSync: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-        apiId: "saipos-2"
-      },
-      {
-        id: "3",
-        name: "Lanchonete Express",
-        address: "Rua das Flores, 789 - Jardim",
-        phone: "(11) 77777-7777",
-        status: 'active',
-        cnpj: "11.222.333/0001-44",
-        city: "São Paulo",
-        state: "SP",
-        zipCode: "05678-901",
-        lastSync: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
-        apiId: "saipos-3"
-      }
-    ];
-  }
+  // Método mockado REMOVIDO - todos os dados devem ser reais
+  // Não usar dados mockados em nenhuma circunstância
+  // Todos os dados devem vir da API Saipos ou do banco de dados
 
   // Método para converter dados de lojas da API Saipos para o formato interno
   private convertStoresData(): SaiposStore[] {

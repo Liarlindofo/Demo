@@ -3,6 +3,8 @@ import { StackProvider, StackTheme } from '@stackframe/stack';
 import { stackServerApp } from '../stack';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import { GlobalErrorHandler } from '@/components/global-error-handler';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -29,11 +31,14 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="dark">
       <body className={bodyClasses}>
-        <StackProvider app={stackServerApp}>
-          <StackTheme>
-            {children}
-          </StackTheme>
-        </StackProvider>
+        <ErrorBoundary>
+          <StackProvider app={stackServerApp}>
+            <StackTheme>
+              <GlobalErrorHandler />
+              {children}
+            </StackTheme>
+          </StackProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );
