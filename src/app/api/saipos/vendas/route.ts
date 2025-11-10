@@ -67,14 +67,23 @@ export async function GET(request: Request) {
 
     console.log("Datas recebidas do cliente - start:", start, "end:", end);
 
-    // Converter datas para ISO puro (remover timezone -03:00)
-    const startISO = start.replace(/-03:00$/, '');
-    const endISO = end.replace(/-03:00$/, '');
+    // Converter datas para UTC-3 (America/Sao_Paulo)
+    // Remover timezone se já existir e criar objetos Date com UTC-3
+    const startDateOnly = start.split('T')[0]; // Extrair apenas a data (YYYY-MM-DD)
+    const endDateOnly = end.split('T')[0];
     
-    console.log("Usando datas do período selecionado:");
-    console.log("Start:", startISO);
-    console.log("End:", endISO);
-    console.log("Período em dias:", Math.ceil((new Date(endISO).getTime() - new Date(startISO).getTime()) / (1000 * 60 * 60 * 24)));
+    // Criar objetos Date com UTC-3: 00:00:00 para início e 23:59:59 para fim
+    const startDate = new Date(`${startDateOnly}T00:00:00-03:00`);
+    const endDate = new Date(`${endDateOnly}T23:59:59-03:00`);
+    
+    // Converter para ISO string para enviar à API Saipos
+    const startISO = startDate.toISOString();
+    const endISO = endDate.toISOString();
+    
+    console.log("Usando datas do período selecionado (UTC-3):");
+    console.log("Start:", startISO, "(original:", startDateOnly, "00:00:00-03:00)");
+    console.log("End:", endISO, "(original:", endDateOnly, "23:59:59-03:00)");
+    console.log("Período em dias:", Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
     // Implementar paginação para buscar TODAS as vendas
     // IMPORTANTE: Adicionar delay entre requisições para evitar rate limiting (429)
@@ -283,23 +292,20 @@ export async function GET(request: Request) {
     console.log(`📊 Total de requisições feitas: ${totalRequests}`);
     
     // Filtrar vendas pelo período solicitado no servidor antes de retornar
-    // Isso garante que só retornamos vendas do período correto
-    const startDateOnly = startISO.split('T')[0];
-    const endDateOnly = endISO.split('T')[0];
-    
-    // Filtrar vendas pelo período solicitado no servidor antes de retornar
-    // IMPORTANTE: Verificar qual campo de data está sendo usado
+    // Usar as datas originais (sem timezone) para comparação
+    // IMPORTANTE: Usar shift_date ?? sale_date ?? created_at conforme especificado
     const filteredSales = allSales.filter((sale: unknown) => {
       const saleObj = sale as SaiposSale;
-      // Tentar diferentes campos de data
-      const saleDate = saleObj.shift_date || saleObj.sale_date || saleObj.created_at || saleObj.date || saleObj.opened_at;
+      // Usar o campo correto: shift_date ?? sale_date ?? created_at
+      const saleDate = saleObj.shift_date ?? saleObj.sale_date ?? saleObj.created_at;
       
       if (!saleDate) {
         console.warn(`⚠️ Venda sem data encontrada:`, JSON.stringify(sale).substring(0, 200));
         return false;
       }
       
-      const saleDateOnly = saleDate.split('T')[0];
+      // Extrair apenas a data (YYYY-MM-DD) para comparação
+      const saleDateOnly = new Date(saleDate).toISOString().split("T")[0];
       const isInRange = saleDateOnly >= startDateOnly && saleDateOnly <= endDateOnly;
       
       if (!isInRange && allSales.length < 50) {

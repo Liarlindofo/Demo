@@ -55,6 +55,22 @@ async function fetchSalesFromSaipos(
   startDate: string,
   endDate: string
 ): Promise<unknown[]> {
+  // Converter datas para UTC-3 (America/Sao_Paulo)
+  // startDate e endDate vêm como YYYY-MM-DD (sem timezone)
+  const startDateOnly = startDate.split('T')[0]; // Extrair apenas a data (YYYY-MM-DD)
+  const endDateOnly = endDate.split('T')[0];
+  
+  // Criar objetos Date com UTC-3: 00:00:00 para início e 23:59:59 para fim
+  const startDateObj = new Date(`${startDateOnly}T00:00:00-03:00`);
+  const endDateObj = new Date(`${endDateOnly}T23:59:59-03:00`);
+  
+  // Converter para ISO string para enviar à API Saipos
+  const startISO = startDateObj.toISOString();
+  const endISO = endDateObj.toISOString();
+  
+  console.log(`📅 Buscando vendas de ${startDateOnly} a ${endDateOnly} (UTC-3)`);
+  console.log(`📅 API Saipos receberá: ${startISO} até ${endISO}`);
+
   const allSales: unknown[] = [];
   let offset = 0;
   const limit = 200;
@@ -67,9 +83,9 @@ async function fetchSalesFromSaipos(
 
   while (hasMoreData) {
     const apiUrl = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(
-      startDate
+      startISO
     )}&p_filter_date_end=${encodeURIComponent(
-      endDate
+      endISO
     )}&p_limit=${limit}&p_offset=${offset}`;
 
     totalRequests++;
@@ -142,7 +158,27 @@ async function fetchSalesFromSaipos(
     }
   }
 
-  return allSales;
+  // Filtrar vendas pelo período solicitado antes de retornar
+  // IMPORTANTE: Usar shift_date ?? sale_date ?? created_at conforme especificado
+  const filteredSales = allSales.filter((sale: unknown) => {
+    const saleObj = sale as { shift_date?: string; sale_date?: string; created_at?: string; [key: string]: unknown };
+    // Usar o campo correto: shift_date ?? sale_date ?? created_at
+    const saleDate = saleObj.shift_date ?? saleObj.sale_date ?? saleObj.created_at;
+    
+    if (!saleDate) {
+      return false;
+    }
+    
+    // Extrair apenas a data (YYYY-MM-DD) para comparação
+    const saleDateOnly = new Date(saleDate).toISOString().split("T")[0];
+    return saleDateOnly >= startDateOnly && saleDateOnly <= endDateOnly;
+  });
+
+  console.log(`📊 Total de vendas carregadas: ${allSales.length}`);
+  console.log(`📊 Total de vendas após filtro por data: ${filteredSales.length}`);
+  console.log(`📊 Período solicitado: ${startDateOnly} a ${endDateOnly}`);
+
+  return filteredSales;
 }
 
 // POST /api/saipos/sync - Sincronizar dados de uma loja específica
