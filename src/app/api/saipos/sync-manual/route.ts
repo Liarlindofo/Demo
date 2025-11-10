@@ -30,9 +30,13 @@ export async function POST(request: Request) {
     // Importar dinamicamente para evitar problemas de circular dependency
     const { POST: syncPOST } = await import("../sync/route");
     
+    // Determinar URL base baseado no ambiente
+    const baseUrl = process.env.NODE_ENV === "production"
+      ? "https://platefull.com.br"
+      : "http://localhost:3000";
+    
     // Criar um novo Request com os parâmetros corretos
-    // Usar uma URL dummy já que não será usada (a função POST não precisa da URL real)
-    const syncRequest = new Request("http://localhost/api/saipos/sync", {
+    const syncRequest = new Request(`${baseUrl}/api/saipos/sync`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

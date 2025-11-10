@@ -53,8 +53,14 @@ export async function POST(request: NextRequest) {
       // Se não houver dados, fazer carregamento inicial em background (não bloquear resposta)
       if (!existingData) {
         console.log(`🔄 Iniciando carregamento inicial de 90 dias para ${storeId}...`)
+        
+        // Determinar URL base baseado no ambiente
+        const baseUrl = process.env.NODE_ENV === "production"
+          ? "https://platefull.com.br"
+          : "http://localhost:3000";
+        
         // Fazer em background sem bloquear a resposta
-        fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/saipos/sync`, {
+        fetch(`${baseUrl}/api/saipos/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

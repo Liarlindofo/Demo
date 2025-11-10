@@ -49,12 +49,17 @@ export async function GET(request: Request) {
     fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 14);
     const fifteenDaysAgoStr = fifteenDaysAgo.toISOString().split("T")[0];
 
+    // Determinar URL base baseado no ambiente
+    const baseUrl = process.env.NODE_ENV === "production"
+      ? "https://platefull.com.br"
+      : "http://localhost:3000";
+
     for (const api of saiposAPIs) {
       try {
         const storeId = api.name; // Usar name como storeId
 
         // Chamar rota de sincronização internamente
-        const syncUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/saipos/sync`;
+        const syncUrl = `${baseUrl}/api/saipos/sync`;
         
         const response = await fetch(syncUrl, {
           method: "POST",
