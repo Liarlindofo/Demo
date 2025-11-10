@@ -263,45 +263,47 @@ export async function POST(request: Request) {
             // Isso evita abrir muitas conexões simultaneamente
             try {
               await db.$transaction(
-                normalized.map((data) => {
-                  const date = new Date(data.date);
-                  const channels = data.salesByOrigin
-                    ? {
-                        salesByOrigin: data.salesByOrigin,
-                        ordersByChannel: data.ordersByChannel,
-                      }
-                    : null;
+                async (tx) => {
+                  for (const data of normalized) {
+                    const date = new Date(data.date);
+                    const channels = data.salesByOrigin
+                      ? {
+                          salesByOrigin: data.salesByOrigin,
+                          ordersByChannel: data.ordersByChannel,
+                        }
+                      : null;
 
-                  return db.salesDaily.upsert({
-                    where: {
-                      storeId_date: {
+                    await tx.salesDaily.upsert({
+                      where: {
+                        storeId_date: {
+                          storeId: targetStoreId,
+                          date: date,
+                        },
+                      },
+                      create: {
                         storeId: targetStoreId,
                         date: date,
+                        totalOrders: data.totalOrders,
+                        totalSales: new Prisma.Decimal(data.totalSales),
+                        averageTicket: data.averageTicket
+                          ? new Prisma.Decimal(data.averageTicket)
+                          : null,
+                        uniqueCustomers: data.uniqueCustomers || null,
+                        channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
                       },
-                    },
-                    create: {
-                      storeId: targetStoreId,
-                      date: date,
-                      totalOrders: data.totalOrders,
-                      totalSales: new Prisma.Decimal(data.totalSales),
-                      averageTicket: data.averageTicket
-                        ? new Prisma.Decimal(data.averageTicket)
-                        : null,
-                      uniqueCustomers: data.uniqueCustomers || null,
-                      channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
-                    },
-                    update: {
-                      totalOrders: data.totalOrders,
-                      totalSales: new Prisma.Decimal(data.totalSales),
-                      averageTicket: data.averageTicket
-                        ? new Prisma.Decimal(data.averageTicket)
-                        : null,
-                      uniqueCustomers: data.uniqueCustomers || null,
-                      channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
-                      updatedAt: new Date(),
-                    },
-                  });
-                }),
+                      update: {
+                        totalOrders: data.totalOrders,
+                        totalSales: new Prisma.Decimal(data.totalSales),
+                        averageTicket: data.averageTicket
+                          ? new Prisma.Decimal(data.averageTicket)
+                          : null,
+                        uniqueCustomers: data.uniqueCustomers || null,
+                        channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                        updatedAt: new Date(),
+                      },
+                    });
+                  }
+                },
                 {
                   timeout: 30000, // 30 segundos de timeout
                 }
@@ -410,45 +412,47 @@ export async function POST(request: Request) {
       // Isso evita abrir muitas conexões simultaneamente
       try {
         await db.$transaction(
-          normalized.map((data) => {
-            const date = new Date(data.date);
-            const channels = data.salesByOrigin
-              ? {
-                  salesByOrigin: data.salesByOrigin,
-                  ordersByChannel: data.ordersByChannel,
-                }
-              : null;
+          async (tx) => {
+            for (const data of normalized) {
+              const date = new Date(data.date);
+              const channels = data.salesByOrigin
+                ? {
+                    salesByOrigin: data.salesByOrigin,
+                    ordersByChannel: data.ordersByChannel,
+                  }
+                : null;
 
-            return db.salesDaily.upsert({
-              where: {
-                storeId_date: {
+              await tx.salesDaily.upsert({
+                where: {
+                  storeId_date: {
+                    storeId: targetStoreId,
+                    date: date,
+                  },
+                },
+                create: {
                   storeId: targetStoreId,
                   date: date,
+                  totalOrders: data.totalOrders,
+                  totalSales: new Prisma.Decimal(data.totalSales),
+                  averageTicket: data.averageTicket
+                    ? new Prisma.Decimal(data.averageTicket)
+                    : null,
+                  uniqueCustomers: data.uniqueCustomers || null,
+                  channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
                 },
-              },
-              create: {
-                storeId: targetStoreId,
-                date: date,
-                totalOrders: data.totalOrders,
-                totalSales: new Prisma.Decimal(data.totalSales),
-                averageTicket: data.averageTicket
-                  ? new Prisma.Decimal(data.averageTicket)
-                  : null,
-                uniqueCustomers: data.uniqueCustomers || null,
-                channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
-              },
-              update: {
-                totalOrders: data.totalOrders,
-                totalSales: new Prisma.Decimal(data.totalSales),
-                averageTicket: data.averageTicket
-                  ? new Prisma.Decimal(data.averageTicket)
-                  : null,
-                uniqueCustomers: data.uniqueCustomers || null,
-                channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
-                updatedAt: new Date(),
-              },
-            });
-          }),
+                update: {
+                  totalOrders: data.totalOrders,
+                  totalSales: new Prisma.Decimal(data.totalSales),
+                  averageTicket: data.averageTicket
+                    ? new Prisma.Decimal(data.averageTicket)
+                    : null,
+                  uniqueCustomers: data.uniqueCustomers || null,
+                  channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                  updatedAt: new Date(),
+                },
+              });
+            }
+          },
           {
             timeout: 30000, // 30 segundos de timeout
           }
