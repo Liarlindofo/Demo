@@ -1,8 +1,8 @@
 export const runtime = "nodejs";
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 
 // POST /api/saipos/sync-manual - Sincronização manual (pode ser chamada pelo frontend)
+// Esta rota é um wrapper que chama a rota /api/saipos/sync internamente
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -17,77 +17,57 @@ export async function POST(request: Request) {
 
     console.log("🔄 Iniciando sincronização manual...", { apiId, storeId, days });
 
-    // Buscar API do banco
-    const saiposAPI = await db.userAPI.findUnique({
-      where: { id: apiId },
-    });
-
-    if (!saiposAPI || saiposAPI.type !== "saipos") {
-      return NextResponse.json(
-        { success: false, error: "API Saipos não encontrada" },
-        { status: 404 }
-      );
-    }
-
-    // Validar que o storeId seja passado, caso contrário usar saiposAPI.name
-    const targetStoreId = storeId || saiposAPI.name;
-
-    if (!targetStoreId) {
-      return NextResponse.json(
-        { success: false, error: "storeId não encontrado" },
-        { status: 400 }
-      );
-    }
-
     // Calcular período (últimos N dias)
     const today = new Date();
     const endDate = today.toISOString().split("T")[0];
-    const startDate = new Date(today.getTime() - days * 24 * 60 * 60 * 1000)
+    const startDate = new Date(today.getTime() - (days - 1) * 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0];
 
-    console.log(`📅 Período de sincronização: ${startDate} a ${endDate}`);
-    console.log(`📊 Store ID usado: ${targetStoreId}`);
-    console.log(`📊 API ID usado: ${apiId}`);
+    console.log(`📅 Período de sincronização: ${startDate} a ${endDate} (${days} dias)`);
 
-    // Chamar rota de vendas via GET com query params
-    const vendasUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/saipos/vendas?data_inicial=${encodeURIComponent(startDate)}&data_final=${encodeURIComponent(endDate)}&apiId=${encodeURIComponent(apiId)}&storeId=${encodeURIComponent(targetStoreId)}`;
+    // Chamar a rota de sincronização diretamente (sem fetch HTTP)
+    // Importar dinamicamente para evitar problemas de circular dependency
+    const { POST: syncPOST } = await import("../sync/route");
     
-    console.log(`🔗 URL chamada: ${vendasUrl}`);
-
-    const response = await fetch(vendasUrl, {
-      method: "GET",
+    // Criar um novo Request com os parâmetros corretos
+    // Usar uma URL dummy já que não será usada (a função POST não precisa da URL real)
+    const syncRequest = new Request("http://localhost/api/saipos/sync", {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        apiId,
+        storeId,
+        startDate,
+        endDate,
+        initialLoad: false,
+      }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "Erro desconhecido");
-      console.error("❌ Erro na resposta da rota /vendas:", response.status, errorText);
+    // Chamar a função POST da rota de sincronização
+    const syncResponse = await syncPOST(syncRequest);
+    const syncResult = await syncResponse.json();
+
+    if (!syncResult.success) {
+      console.error("❌ Erro na sincronização:", syncResult.error);
       return NextResponse.json(
         {
           success: false,
-          error: `Erro ao buscar vendas: ${response.status} ${errorText}`,
+          error: syncResult.error || "Erro ao sincronizar dados",
         },
-        { status: response.status || 500 }
+        { status: syncResponse.status || 500 }
       );
     }
 
-    const result = await response.json();
-
-    // Verificar se há dados na resposta
-    const vendas = Array.isArray(result?.data) ? result.data : [];
-    const totalVendas = vendas.length;
-
-    console.log(`✅ Sincronização manual concluída: ${totalVendas} vendas encontradas`);
+    console.log(`✅ Sincronização manual concluída: ${syncResult.synced || 0} registros sincronizados`);
 
     return NextResponse.json({
       success: true,
       message: "Sincronização concluída",
-      synced: totalVendas,
+      synced: syncResult.synced || 0,
       period: { start: startDate, end: endDate },
-      data: vendas,
     });
   } catch (error) {
     console.error("❌ Erro na sincronização manual:", error);
