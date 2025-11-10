@@ -202,6 +202,7 @@ export async function POST(request: Request) {
     }
 
     // Determinar período de sincronização
+    // Sempre baixar os últimos 15 dias (incluindo o dia da sincronização)
     const today = new Date();
     const syncEndDate = endDate || today.toISOString().split("T")[0];
     const syncStartDate =
@@ -210,7 +211,9 @@ export async function POST(request: Request) {
         ? new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000)
             .toISOString()
             .split("T")[0]
-        : syncEndDate); // Se não for initial load, sincronizar apenas o dia atual
+        : new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split("T")[0]); // Sempre baixar últimos 15 dias (14 dias atrás + hoje = 15 dias)
 
     console.log(
       `🔄 Iniciando sincronização para storeId="${targetStoreId}", período: ${syncStartDate} a ${syncEndDate}${initialLoad ? " (carregamento inicial)" : ""}`
@@ -219,8 +222,9 @@ export async function POST(request: Request) {
 
     let syncedCount = 0;
 
-    // Se for carregamento inicial, processar dia por dia para evitar rate limiting
-    if (initialLoad && syncStartDate !== syncEndDate) {
+    // Processar em lotes quando houver mais de 1 dia para evitar rate limiting
+    // Sempre processar em lotes para períodos de 15 dias
+    if (syncStartDate !== syncEndDate) {
       const start = new Date(syncStartDate);
       const end = new Date(syncEndDate);
       const daysToProcess: string[] = [];
@@ -231,7 +235,7 @@ export async function POST(request: Request) {
       }
 
       console.log(
-        `📅 Processando ${daysToProcess.length} dias em lotes para evitar rate limiting...`
+        `📅 Processando ${daysToProcess.length} dias (últimos 15 dias) em lotes para evitar rate limiting...`
       );
 
       // Processar em lotes de 7 dias por vez

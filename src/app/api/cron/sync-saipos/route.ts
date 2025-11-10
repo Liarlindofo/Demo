@@ -42,7 +42,12 @@ export async function GET(request: Request) {
 
     // Sincronizar cada loja
     const results = [];
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    // Calcular data de 15 dias atrás (14 dias + hoje = 15 dias)
+    const fifteenDaysAgo = new Date(today);
+    fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 14);
+    const fifteenDaysAgoStr = fifteenDaysAgo.toISOString().split("T")[0];
 
     for (const api of saiposAPIs) {
       try {
@@ -59,8 +64,8 @@ export async function GET(request: Request) {
           body: JSON.stringify({
             apiId: api.id,
             storeId: storeId,
-            startDate: today, // Sincronizar apenas o dia atual no cron
-            endDate: today,
+            startDate: fifteenDaysAgoStr, // Sincronizar últimos 15 dias
+            endDate: todayStr,
             initialLoad: false,
           }),
         });
@@ -113,6 +118,8 @@ export async function GET(request: Request) {
     );
   }
 }
+
+
 
 
 
