@@ -20,7 +20,6 @@ export async function GET() {
       storeId: api.storeId ?? undefined,
       start,
       end,
-      initialLoad: false,
     })
     results.push({ apiId: api.id, success: res.success, synced: res.synced, errors: res.errors })
   }
