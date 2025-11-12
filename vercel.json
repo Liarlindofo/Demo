@@ -3,7 +3,8 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "env": {
-    "PRISMA_GENERATE_DATAPROXY": "false"
+    "PRISMA_GENERATE_DATAPROXY": "false",
+    "PRISMA_DISABLE_PREPARED_STATEMENTS": "true"
   },
   "crons": [
     {
