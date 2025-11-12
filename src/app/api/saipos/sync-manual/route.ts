@@ -24,9 +24,10 @@ export async function POST(req: NextRequest) {
     })
 
     return NextResponse.json(result, { status: result.success ? 200 : 409 })
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Erro inesperado'
     return NextResponse.json(
-      { success: false, message: e?.message ?? 'Erro inesperado' },
+      { success: false, message },
       { status: 500 },
     )
   }

@@ -23,6 +23,24 @@ type SyncSummary = {
   message?: string
 }
 
+// Tipo para registros de venda da Saipos (estrutura flexível)
+type SaiposSaleRecord = {
+  id_sale?: string | number | null
+  id?: string | number | null
+  numero?: string | number | null
+  number?: string | number | null
+  shift_date?: string | null
+  sale_date?: string | null
+  created_at?: string | null
+  date?: string | null
+  opened_at?: string | null
+  total?: string | number | null
+  total_amount?: string | number | null
+  valor_total?: string | number | null
+  amount?: string | number | null
+  [key: string]: unknown
+}
+
 const BRT_OFFSET = '-03:00'
 const DEFAULT_LIMIT = 200
 const MAX_TOTAL_REQUESTS = 100
@@ -37,7 +55,7 @@ function toISODateOnly(date: Date): string {
   return date.toISOString().split('T')[0]
 }
 
-function parseTotalAmount(record: any): Prisma.Decimal | null {
+function parseTotalAmount(record: SaiposSaleRecord): Prisma.Decimal | null {
   const candidates = [
     record?.total,
     record?.total_amount,
@@ -54,7 +72,7 @@ function parseTotalAmount(record: any): Prisma.Decimal | null {
   return null
 }
 
-function extractSaleDate(record: any): string | undefined {
+function extractSaleDate(record: SaiposSaleRecord): string | undefined {
   return (
     record?.shift_date ||
     record?.sale_date ||
@@ -64,7 +82,7 @@ function extractSaleDate(record: any): string | undefined {
   )
 }
 
-function extractExternalId(record: any, fallbackStoreId?: string | null): string | null {
+function extractExternalId(record: SaiposSaleRecord, fallbackStoreId?: string | null): string | null {
   const primary = record?.id_sale || record?.id
   if (primary) return String(primary)
   const numero = record?.numero ?? record?.number
@@ -72,7 +90,7 @@ function extractExternalId(record: any, fallbackStoreId?: string | null): string
   return null
 }
 
-function looksMockedPage(items: any[]): boolean {
+function looksMockedPage(items: SaiposSaleRecord[]): boolean {
   if (items.length === 0) return false
   // All IDs missing
   const noIds = items.every((r) => !extractExternalId(r, 'store'))
@@ -134,7 +152,7 @@ export async function syncSaiposForApi({
   storeId,
   start,
   end,
-  initialLoad = false,
+  initialLoad: _initialLoad = false,
 }: SyncParams): Promise<SyncSummary> {
   // Acquire lock (optimistic set isSyncing = true if currently false)
   const acquired = await prisma.userAPI.updateMany({
@@ -259,10 +277,10 @@ export async function syncSaiposForApi({
         }
       }
 
-      let json: any
+      let json: unknown
       try {
         json = await res.json()
-      } catch (e) {
+      } catch (e: unknown) {
         errors += 1
         await prisma.syncError.create({
           data: {
@@ -276,17 +294,17 @@ export async function syncSaiposForApi({
 
       // save raw page
       await prisma.salesRawPage.create({
-        data: { syncRunId: run.id, pageIndex: offset / DEFAULT_LIMIT, payload: json },
+        data: { syncRunId: run.id, pageIndex: offset / DEFAULT_LIMIT, payload: json as Prisma.JsonObject },
       })
 
       // extract items flexibly
-      let items: any[] = []
+      let items: SaiposSaleRecord[] = []
       if (Array.isArray(json)) {
-        items = json
-      } else if (Array.isArray(json?.data)) {
-        items = json.data
-      } else if (Array.isArray(json?.items)) {
-        items = json.items
+        items = json as SaiposSaleRecord[]
+      } else if (json && typeof json === 'object' && 'data' in json && Array.isArray(json.data)) {
+        items = json.data as SaiposSaleRecord[]
+      } else if (json && typeof json === 'object' && 'items' in json && Array.isArray(json.items)) {
+        items = json.items as SaiposSaleRecord[]
       }
 
       const pageCount = items.length
@@ -401,8 +419,9 @@ export async function syncSaiposForApi({
       started_at: run.startedAt.toISOString(),
       ended_at: ended.toISOString(),
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     const ended = new Date()
+    const errorMessage = e instanceof Error ? e.message : 'Erro na sincronização'
     await prisma.syncRun.update({
       where: { id: run.id },
       data: {
@@ -427,11 +446,10 @@ export async function syncSaiposForApi({
       lastUrl,
       started_at: run.startedAt.toISOString(),
       ended_at: ended.toISOString(),
-      message: e?.message ?? 'Erro na sincronização',
+      message: errorMessage,
     }
   } finally {
     await prisma.userAPI.update({ where: { id: apiId }, data: { isSyncing: false } })
-    // eslint-disable-next-line no-console
     console.log(`[saipos-sync] done api=${apiId} token=${tokenLogPrefix}... lastUrl=${lastUrl}`)
   }
 }
