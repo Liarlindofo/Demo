@@ -377,7 +377,7 @@ export async function syncSaiposForApi({
         .filter(Boolean) as ReturnType<typeof prisma.sale.upsert>[]
 
       if (upserts.length > 0) {
-        await prisma.$transaction(upserts, { timeout: 30000 })
+        await prisma.$transaction(upserts)
         synced += upserts.length
       }
 
