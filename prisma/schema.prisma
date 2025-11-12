@@ -133,8 +133,8 @@ model SalesDaily {
   storeId        String
   date           DateTime
   totalOrders    Int
-  totalSales     Decimal  @db.Numeric
-  averageTicket  Decimal? @db.Numeric
+  totalSales     Decimal  @db.Decimal(12,2)
+  averageTicket  Decimal? @db.Decimal(12,2)
   uniqueCustomers Int?
   channels       Json?
   createdAt      DateTime @default(now())
