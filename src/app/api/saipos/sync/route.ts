@@ -298,8 +298,7 @@ export async function POST(request: Request) {
             // Usar transação para salvar múltiplos registros de uma vez
             // Isso evita abrir muitas conexões simultaneamente
             try {
-              await db.$transaction(
-                async (tx) => {
+              await db.$transaction(async (tx) => {
                   for (const data of normalized) {
                     const date = new Date(data.date);
                     const channels = data.salesByOrigin
@@ -339,12 +338,21 @@ export async function POST(request: Request) {
                       },
                     });
                   }
-                },
-                {
-                  timeout: 30000, // 30 segundos de timeout
-                }
-              );
+              });
               syncedCount += normalized.length;
+              console.log(`✅ Upsert concluído em sales_daily: ${normalized.length} registros`);
+              try {
+                await db.salesRaw.create({
+                  data: {
+                    storeId: targetStoreId,
+                    period: { start: batchStart, end: batchEnd } as unknown as Prisma.InputJsonValue,
+                    payload: normalized as unknown as Prisma.InputJsonValue,
+                  },
+                });
+                console.log("🗃️ Snapshot salvo em sales_raw");
+              } catch (e) {
+                console.warn("⚠️ Falha ao salvar snapshot em sales_raw:", e);
+              }
             } catch (error) {
               console.error(`Erro ao salvar lote de dados:`, error);
               // Se a transação falhar, tentar salvar individualmente
@@ -447,8 +455,7 @@ export async function POST(request: Request) {
       // Usar transação para salvar múltiplos registros de uma vez
       // Isso evita abrir muitas conexões simultaneamente
       try {
-        await db.$transaction(
-          async (tx) => {
+        await db.$transaction(async (tx) => {
             for (const data of normalized) {
               const date = new Date(data.date);
               const channels = data.salesByOrigin
@@ -488,15 +495,23 @@ export async function POST(request: Request) {
                 },
               });
             }
-          },
-          {
-            timeout: 30000, // 30 segundos de timeout
-          }
-        );
+        });
         syncedCount += normalized.length;
         
         if (normalized.length > 0) {
           console.log(`✅ ${normalized.length} registros salvos em transação`);
+        }
+        try {
+          await db.salesRaw.create({
+            data: {
+              storeId: targetStoreId,
+              period: { start: syncStartDate, end: syncEndDate } as unknown as Prisma.InputJsonValue,
+              payload: normalized as unknown as Prisma.InputJsonValue,
+            },
+          });
+          console.log("🗃️ Snapshot salvo em sales_raw");
+        } catch (e) {
+          console.warn("⚠️ Falha ao salvar snapshot em sales_raw:", e);
         }
       } catch (error) {
         console.error(`Erro ao salvar lote de dados:`, error);

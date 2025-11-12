@@ -131,16 +131,16 @@ model StackSession {
 model SalesDaily {
   id             String   @id @default(cuid())
   storeId        String
-  date           DateTime  @db.Date
+  date           DateTime
   totalOrders    Int
-  totalSales     Decimal  @db.Decimal(12,2)
-  averageTicket  Decimal? @db.Decimal(12,2)
+  totalSales     Decimal  @db.Numeric
+  averageTicket  Decimal? @db.Numeric
   uniqueCustomers Int?
   channels       Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@unique([storeId, date])
+  @@unique([storeId, date], name: "storeId_date")
   @@index([storeId, date])
   @@map("sales_daily")
 }
@@ -213,5 +213,16 @@ model SalesRawPage {
 
   @@unique([syncRunId, pageIndex])
   @@index([syncRunId])
+  @@map("sync_raw_pages")
+}
+
+/// Snapshot agregado opcional por período, por loja
+model SalesRaw {
+  id        String   @id @default(cuid())
+  storeId   String
+  period    Json
+  payload   Json
+  createdAt DateTime @default(now())
+
   @@map("sales_raw")
 }
