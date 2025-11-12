@@ -6,7 +6,6 @@ type SyncParams = {
   storeId?: string | null
   start: Date
   end: Date
-  initialLoad?: boolean
 }
 
 type SyncSummary = {
@@ -73,13 +72,19 @@ function parseTotalAmount(record: SaiposSaleRecord): Prisma.Decimal | null {
 }
 
 function extractSaleDate(record: SaiposSaleRecord): string | undefined {
-  return (
-    record?.shift_date ||
-    record?.sale_date ||
-    record?.created_at ||
-    record?.date ||
-    record?.opened_at
-  )
+  const candidates = [
+    record?.shift_date,
+    record?.sale_date,
+    record?.created_at,
+    record?.date,
+    record?.opened_at,
+  ]
+  for (const candidate of candidates) {
+    if (candidate != null && typeof candidate === 'string') {
+      return candidate
+    }
+  }
+  return undefined
 }
 
 function extractExternalId(record: SaiposSaleRecord, fallbackStoreId?: string | null): string | null {
@@ -152,7 +157,6 @@ export async function syncSaiposForApi({
   storeId,
   start,
   end,
-  initialLoad: _initialLoad = false,
 }: SyncParams): Promise<SyncSummary> {
   // Acquire lock (optimistic set isSyncing = true if currently false)
   const acquired = await prisma.userAPI.updateMany({

@@ -20,7 +20,6 @@ export async function POST(req: NextRequest) {
       storeId: overrideStoreId,
       start,
       end,
-      initialLoad: false,
     })
 
     return NextResponse.json(result, { status: result.success ? 200 : 409 })
