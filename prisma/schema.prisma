@@ -82,11 +82,16 @@ model UserAPI {
   apiKey    String
   baseUrl   String?
   status    String   @default("disconnected")
+  // Saipos specific integration controls
+  storeId   String?
+  enabled   Boolean  @default(false)
+  isSyncing Boolean  @default(false)
   lastTest  DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("user_apis")
+  @@index([type, enabled])
 }
 
 model StackUser {
@@ -138,4 +143,75 @@ model SalesDaily {
   @@unique([storeId, date])
   @@index([storeId, date])
   @@map("sales_daily")
+}
+
+/// Raw sale records fetched from Saipos for auditability and downstream processing
+model Sale {
+  id             String   @id @default(cuid())
+  externalId     String
+  storeId        String
+  userId         String
+  saleDateUtc    DateTime
+  totalAmount    Decimal? @db.Decimal(12,2)
+  rawJson        Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([storeId, externalId])
+  @@index([userId, storeId, saleDateUtc])
+  @@map("sales")
+}
+
+/// Sync runs bookkeeping
+model SyncRun {
+  id                String   @id @default(cuid())
+  userApiId         String
+  storeId           String?
+  status            String   // running | success | error
+  startPeriod       DateTime
+  endPeriod         DateTime
+  syncedCount       Int      @default(0)
+  errorsCount       Int      @default(0)
+  totalRequests     Int      @default(0)
+  totalRecordsRaw   Int      @default(0)
+  totalAfterFilter  Int      @default(0)
+  lastUrl           String?
+  startedAt         DateTime @default(now())
+  endedAt           DateTime?
+
+  pages             SalesRawPage[]
+  errors            SyncError[]
+
+  @@index([userApiId, status])
+  @@index([storeId, startedAt])
+  @@map("sync_runs")
+}
+
+/// Individual errors tied to a sync run
+model SyncError {
+  id          String   @id @default(cuid())
+  syncRunId   String
+  message     String
+  payloadPreview String?
+  createdAt   DateTime @default(now())
+
+  run         SyncRun  @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
+
+  @@index([syncRunId, createdAt])
+  @@map("sync_errors")
+}
+
+/// Raw JSON pages saved per sync run for audit
+model SalesRawPage {
+  id          String   @id @default(cuid())
+  syncRunId   String
+  pageIndex   Int
+  payload     Json
+  createdAt   DateTime @default(now())
+
+  run         SyncRun  @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
+
+  @@unique([syncRunId, pageIndex])
+  @@index([syncRunId])
+  @@map("sales_raw")
 }
