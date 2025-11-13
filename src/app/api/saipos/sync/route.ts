@@ -497,10 +497,7 @@ export async function POST(request: Request) {
             }
         });
         syncedCount += normalized.length;
-        
-        if (normalized.length > 0) {
-          console.log(`✅ ${normalized.length} registros salvos em transação`);
-        }
+        console.log(`✅ Upsert concluído em sales_daily: ${normalized.length} registros`);
         try {
           await db.salesRaw.create({
             data: {
