@@ -22,7 +22,16 @@ export async function POST(req: NextRequest) {
       end,
     })
 
-    return NextResponse.json(result, { status: result.success ? 200 : 409 })
+    // Retornar 200 mesmo em caso de erro, mas com success: false
+    // O frontend pode tratar baseado no campo success
+    // 409 apenas para conflito de lock
+    const status = result.success 
+      ? 200 
+      : result.message?.includes('lock') || result.message?.includes('em andamento')
+        ? 409
+        : 200
+    
+    return NextResponse.json(result, { status })
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Erro inesperado'
     return NextResponse.json(

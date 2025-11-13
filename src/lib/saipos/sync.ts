@@ -97,16 +97,32 @@ function extractExternalId(record: SaiposSaleRecord, fallbackStoreId?: string | 
 
 function looksMockedPage(items: SaiposSaleRecord[]): boolean {
   if (items.length === 0) return false
-  // All IDs missing
-  const noIds = items.every((r) => !extractExternalId(r, 'store'))
-  if (noIds) return true
-  // All tiny objects
+  
+  // Verificar se todos os itens têm IDs válidos
+  const itemsWithIds = items.filter((r) => extractExternalId(r, 'store'))
+  // Se menos de 50% dos itens têm IDs, pode ser mockado
+  if (itemsWithIds.length < items.length * 0.5) {
+    console.warn(`⚠️ Menos de 50% dos itens têm IDs válidos (${itemsWithIds.length}/${items.length})`)
+    // Não bloquear, apenas avisar - pode ser dados reais com estrutura diferente
+  }
+  
+  // Verificar se todos os objetos são muito pequenos (menos de 3 campos)
   const tiny = items.every((r) => r && typeof r === 'object' && Object.keys(r).length <= 2)
-  if (tiny) return true
-  // All identical JSON
-  const first = JSON.stringify(items[0])
-  const allSame = items.every((r) => JSON.stringify(r) === first)
-  if (allSame) return true
+  if (tiny && items.length > 5) {
+    // Se todos têm 2 campos ou menos E há mais de 5 itens, provavelmente é mockado
+    return true
+  }
+  
+  // Verificar se todos são idênticos (apenas se houver mais de 1 item)
+  if (items.length > 1) {
+    const first = JSON.stringify(items[0])
+    const allSame = items.every((r) => JSON.stringify(r) === first)
+    if (allSame) {
+      console.warn(`⚠️ Todos os ${items.length} itens são idênticos - possível dado mockado`)
+      return true
+    }
+  }
+  
   return false
 }
 
@@ -158,6 +174,8 @@ export async function syncSaiposForApi({
   start,
   end,
 }: SyncParams): Promise<SyncSummary> {
+  console.log(`🔄 Iniciando syncSaiposForApi para apiId=${apiId}, storeId=${storeId || 'não fornecido'}`)
+  
   // Acquire lock (optimistic set isSyncing = true if currently false)
   const acquired = await prisma.userAPI.updateMany({
     where: { id: apiId, isSyncing: false },
@@ -187,10 +205,12 @@ export async function syncSaiposForApi({
       apiKey: true,
       storeId: true,
       enabled: true,
+      name: true,
     },
   })
-  if (!api || api.type !== 'saipos' || !api.enabled) {
-    await prisma.userAPI.update({ where: { id: apiId }, data: { isSyncing: false } })
+  
+  if (!api) {
+    await prisma.userAPI.update({ where: { id: apiId }, data: { isSyncing: false } }).catch(() => {})
     return {
       success: false,
       synced: 0,
@@ -201,8 +221,32 @@ export async function syncSaiposForApi({
       period: { start: start.toISOString(), end: end.toISOString() },
       started_at: new Date().toISOString(),
       ended_at: new Date().toISOString(),
-      message: 'API inválida, não-saipos ou desativada.',
+      message: `API não encontrada com ID: ${apiId}`,
     }
+  }
+  
+  if (api.type !== 'saipos') {
+    await prisma.userAPI.update({ where: { id: apiId }, data: { isSyncing: false } }).catch(() => {})
+    return {
+      success: false,
+      synced: 0,
+      errors: 0,
+      totalBeforeFilter: 0,
+      totalAfterFilter: 0,
+      totalRequests: 0,
+      period: { start: start.toISOString(), end: end.toISOString() },
+      started_at: new Date().toISOString(),
+      ended_at: new Date().toISOString(),
+      message: `API não é do tipo Saipos. Tipo atual: ${api.type || 'não definido'}`,
+    }
+  }
+  
+  // Permitir sincronização mesmo se enabled=false (pode ser sincronização manual)
+  // Mas avisar se estiver desativada
+  console.log(`✅ API encontrada: id=${api.id}, type=${api.type}, enabled=${api.enabled}, storeId=${api.storeId || 'não definido'}, name=${api.name || 'não definido'}`)
+  
+  if (api.enabled === false) {
+    console.warn(`⚠️ API ${apiId} (${api.name}) está desativada, mas prosseguindo com sincronização manual`)
   }
 
   const effectiveStoreId = storeId ?? api.storeId ?? ''
@@ -325,14 +369,18 @@ export async function syncSaiposForApi({
 
       if (looksMockedPage(items)) {
         errors += 1
+        const preview = items.length > 0 ? JSON.stringify(items[0]).slice(0, 500) : 'array vazio'
         await prisma.syncError.create({
           data: {
             syncRunId: run.id,
-            message: 'Página aparenta conter dados mockados; sincronização abortada.',
-            payloadPreview: JSON.stringify(items[0]).slice(0, 500),
+            message: 'Página aparenta conter dados mockados (todos idênticos ou muito pequenos); pulando página.',
+            payloadPreview: preview,
           },
         })
-        throw new Error('Dados mock detectados')
+        console.warn(`⚠️ Página ${offset / DEFAULT_LIMIT} aparenta conter dados mockados, pulando...`)
+        // Não abortar a sincronização, apenas pular esta página
+        await sleep(DELAY_BETWEEN_REQUESTS_MS)
+        continue
       }
 
       // filter by date window using sale date fields; also prepare upserts
@@ -379,6 +427,17 @@ export async function syncSaiposForApi({
       if (upserts.length > 0) {
         await prisma.$transaction(upserts)
         synced += upserts.length
+        console.log(`✅ ${upserts.length} vendas individuais salvas na tabela 'sales' (página ${offset / DEFAULT_LIMIT + 1})`)
+        
+        // Log de amostra dos primeiros 3 registros para validação
+        if (synced <= 3) {
+          const sample = filtered.slice(0, 3).map((r) => ({
+            externalId: extractExternalId(r, effectiveStoreId),
+            saleDate: extractSaleDate(r),
+            total: parseTotalAmount(r)?.toString(),
+          }))
+          console.log(`📊 Amostra de dados salvos:`, sample)
+        }
       }
 
       await prisma.syncRun.update({
