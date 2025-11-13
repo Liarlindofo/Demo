@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { normalizeSalesResponse } from "@/lib/saipos-api";
 import { Prisma } from "@prisma/client";
+import { stackServerApp } from "@/stack";
+import { syncStackAuthUser } from "@/lib/stack-auth-sync";
 
 interface SyncRequest {
   apiId?: string;
@@ -54,7 +56,7 @@ async function fetchSalesFromSaipos(
   token: string,
   startDate: string,
   endDate: string
-): Promise<unknown[]> {
+): Promise<{ filteredSales: unknown[]; totalFetched: number }> {
   // Converter datas para UTC-3 (America/Sao_Paulo)
   // startDate e endDate vêm como YYYY-MM-DD (sem timezone)
   const startDateOnly = startDate.split('T')[0]; // Extrair apenas a data (YYYY-MM-DD)
@@ -80,8 +82,10 @@ async function fetchSalesFromSaipos(
   let totalRequests = 0;
   const maxTotalRequests = 100;
   const delayBetweenRequests = 800;
+  let totalFetched = 0;
+  const maxOrders = 6000;
 
-  while (hasMoreData) {
+  while (hasMoreData && totalFetched < maxOrders) {
     const apiUrl = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(
       startISO
     )}&p_filter_date_end=${encodeURIComponent(
@@ -139,6 +143,7 @@ async function fetchSalesFromSaipos(
 
     consecutiveEmptyPages = 0;
     allSales.push(...pageArray);
+    totalFetched += pageArray.length;
     console.log(
       `✅ Página carregada: ${pageArray.length} venda(s) (total: ${allSales.length})`
     );
@@ -178,12 +183,31 @@ async function fetchSalesFromSaipos(
   console.log(`📊 Total de vendas após filtro por data: ${filteredSales.length}`);
   console.log(`📊 Período solicitado: ${startDateOnly} a ${endDateOnly}`);
 
-  return filteredSales;
+  return { filteredSales, totalFetched };
 }
 
 // POST /api/saipos/sync - Sincronizar dados de uma loja específica
 export async function POST(request: Request) {
   try {
+    // Autenticação do usuário
+    const stackUser = await stackServerApp.getUser({ or: "return-null" });
+    if (!stackUser) {
+      return NextResponse.json(
+        { success: false, error: "Usuário não autenticado" },
+        { status: 401 }
+      );
+    }
+
+    // Garantir usuário no banco e obter userId interno
+    const dbUser = await syncStackAuthUser({
+      id: stackUser.id,
+      primaryEmail: stackUser.primaryEmail || undefined,
+      displayName: stackUser.displayName || undefined,
+      profileImageUrl: stackUser.profileImageUrl || undefined,
+      primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
+    });
+    const userId = dbUser.id;
+
     const body = (await request.json()) as SyncRequest;
     const { apiId, storeId, startDate, endDate, initialLoad } = body;
 
@@ -257,6 +281,7 @@ export async function POST(request: Request) {
     console.log(`📊 API ID: ${apiId}, Store ID: ${targetStoreId}`);
 
     let syncedCount = 0;
+    let totalFetchedAll = 0;
 
     // Processar em lotes quando houver mais de 1 dia para evitar rate limiting
     // Sempre processar em lotes para períodos de 15 dias
@@ -286,14 +311,15 @@ export async function POST(request: Request) {
         );
 
         try {
-          const sales = await fetchSalesFromSaipos(
+          const { filteredSales: sales, totalFetched } = await fetchSalesFromSaipos(
             cleanToken,
             batchStart,
             batchEnd
           );
+          totalFetchedAll += totalFetched;
 
           if (sales.length > 0) {
-            const normalized = normalizeSalesResponse(sales);
+            const normalized = normalizeSalesResponse(sales as any[]);
 
             // Usar transação para salvar múltiplos registros de uma vez
             // Isso evita abrir muitas conexões simultaneamente
@@ -301,39 +327,47 @@ export async function POST(request: Request) {
               await db.$transaction(async (tx) => {
                   for (const data of normalized) {
                     const date = new Date(data.date);
-                    const channels = data.salesByOrigin
-                      ? {
-                          salesByOrigin: data.salesByOrigin,
-                          ordersByChannel: data.ordersByChannel,
-                        }
-                      : null;
 
                     await tx.salesDaily.upsert({
                       where: {
-                        storeId_date: {
-                          storeId: targetStoreId,
-                          date: date,
-                        },
+                        user_store_date: { userId, storeId: targetStoreId, date },
                       },
                       create: {
+                        userId,
                         storeId: targetStoreId,
-                        date: date,
+                        date,
                         totalOrders: data.totalOrders,
+                        canceledOrders: data.canceledOrders,
                         totalSales: new Prisma.Decimal(data.totalSales),
-                        averageTicket: data.averageTicket
-                          ? new Prisma.Decimal(data.averageTicket)
-                          : null,
-                        uniqueCustomers: data.uniqueCustomers || null,
-                        channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                        averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
+                        averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
+                        qtdDelivery: data.qtdDelivery,
+                        qtdBalcao: data.qtdBalcao,
+                        qtdIFood: data.qtdIFood,
+                        qtdTelefone: data.qtdTelefone,
+                        qtdCentralPedidos: data.qtdCentralPedidos,
+                        qtdDeliveryDireto: data.qtdDeliveryDireto,
+                        totalItems: data.totalItems,
+                        totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
+                        totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
+                        totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                       },
                       update: {
                         totalOrders: data.totalOrders,
+                        canceledOrders: data.canceledOrders,
                         totalSales: new Prisma.Decimal(data.totalSales),
-                        averageTicket: data.averageTicket
-                          ? new Prisma.Decimal(data.averageTicket)
-                          : null,
-                        uniqueCustomers: data.uniqueCustomers || null,
-                        channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                        averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
+                        averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
+                        qtdDelivery: data.qtdDelivery,
+                        qtdBalcao: data.qtdBalcao,
+                        qtdIFood: data.qtdIFood,
+                        qtdTelefone: data.qtdTelefone,
+                        qtdCentralPedidos: data.qtdCentralPedidos,
+                        qtdDeliveryDireto: data.qtdDeliveryDireto,
+                        totalItems: data.totalItems,
+                        totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
+                        totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
+                        totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                         updatedAt: new Date(),
                       },
                     });
@@ -359,39 +393,47 @@ export async function POST(request: Request) {
               for (const data of normalized) {
                 try {
                   const date = new Date(data.date);
-                  const channels = data.salesByOrigin
-                    ? {
-                        salesByOrigin: data.salesByOrigin,
-                        ordersByChannel: data.ordersByChannel,
-                      }
-                    : null;
 
                   await db.salesDaily.upsert({
                     where: {
-                      storeId_date: {
-                        storeId: targetStoreId,
-                        date: date,
-                      },
+                      user_store_date: { userId, storeId: targetStoreId, date },
                     },
                     create: {
+                      userId,
                       storeId: targetStoreId,
-                      date: date,
+                      date,
                       totalOrders: data.totalOrders,
+                      canceledOrders: data.canceledOrders,
                       totalSales: new Prisma.Decimal(data.totalSales),
-                      averageTicket: data.averageTicket
-                        ? new Prisma.Decimal(data.averageTicket)
-                        : null,
-                      uniqueCustomers: data.uniqueCustomers || null,
-                      channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                      averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
+                      averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
+                      qtdDelivery: data.qtdDelivery,
+                      qtdBalcao: data.qtdBalcao,
+                      qtdIFood: data.qtdIFood,
+                      qtdTelefone: data.qtdTelefone,
+                      qtdCentralPedidos: data.qtdCentralPedidos,
+                      qtdDeliveryDireto: data.qtdDeliveryDireto,
+                      totalItems: data.totalItems,
+                      totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
+                      totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
+                      totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                     },
                     update: {
                       totalOrders: data.totalOrders,
+                      canceledOrders: data.canceledOrders,
                       totalSales: new Prisma.Decimal(data.totalSales),
-                      averageTicket: data.averageTicket
-                        ? new Prisma.Decimal(data.averageTicket)
-                        : null,
-                      uniqueCustomers: data.uniqueCustomers || null,
-                      channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                      averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
+                      averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
+                      qtdDelivery: data.qtdDelivery,
+                      qtdBalcao: data.qtdBalcao,
+                      qtdIFood: data.qtdIFood,
+                      qtdTelefone: data.qtdTelefone,
+                      qtdCentralPedidos: data.qtdCentralPedidos,
+                      qtdDeliveryDireto: data.qtdDeliveryDireto,
+                      totalItems: data.totalItems,
+                      totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
+                      totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
+                      totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                       updatedAt: new Date(),
                     },
                   });
@@ -414,11 +456,12 @@ export async function POST(request: Request) {
       }
     } else {
       // Processamento normal (não é carregamento inicial ou período pequeno)
-      const sales = await fetchSalesFromSaipos(
+      const { filteredSales: sales, totalFetched } = await fetchSalesFromSaipos(
         cleanToken,
         syncStartDate,
         syncEndDate
       );
+      totalFetchedAll += totalFetched;
 
       if (sales.length === 0) {
         console.log("⚠️ Nenhuma venda encontrada no período");
@@ -431,7 +474,7 @@ export async function POST(request: Request) {
 
       // Normalizar dados
       console.log(`📊 Normalizando ${sales.length} vendas...`);
-      const normalized = normalizeSalesResponse(sales);
+      const normalized = normalizeSalesResponse(sales as any[]);
       console.log(`📊 ${normalized.length} vendas normalizadas`);
 
       if (normalized.length === 0) {
@@ -458,39 +501,47 @@ export async function POST(request: Request) {
         await db.$transaction(async (tx) => {
             for (const data of normalized) {
               const date = new Date(data.date);
-              const channels = data.salesByOrigin
-                ? {
-                    salesByOrigin: data.salesByOrigin,
-                    ordersByChannel: data.ordersByChannel,
-                  }
-                : null;
 
               await tx.salesDaily.upsert({
                 where: {
-                  storeId_date: {
-                    storeId: targetStoreId,
-                    date: date,
-                  },
+                  user_store_date: { userId, storeId: targetStoreId, date },
                 },
                 create: {
+                  userId,
                   storeId: targetStoreId,
-                  date: date,
+                  date,
                   totalOrders: data.totalOrders,
+                  canceledOrders: data.canceledOrders,
                   totalSales: new Prisma.Decimal(data.totalSales),
-                  averageTicket: data.averageTicket
-                    ? new Prisma.Decimal(data.averageTicket)
-                    : null,
-                  uniqueCustomers: data.uniqueCustomers || null,
-                  channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                  averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
+                  averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
+                  qtdDelivery: data.qtdDelivery,
+                  qtdBalcao: data.qtdBalcao,
+                  qtdIFood: data.qtdIFood,
+                  qtdTelefone: data.qtdTelefone,
+                  qtdCentralPedidos: data.qtdCentralPedidos,
+                  qtdDeliveryDireto: data.qtdDeliveryDireto,
+                  totalItems: data.totalItems,
+                  totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
+                  totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
+                  totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                 },
                 update: {
                   totalOrders: data.totalOrders,
+                  canceledOrders: data.canceledOrders,
                   totalSales: new Prisma.Decimal(data.totalSales),
-                  averageTicket: data.averageTicket
-                    ? new Prisma.Decimal(data.averageTicket)
-                    : null,
-                  uniqueCustomers: data.uniqueCustomers || null,
-                  channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                  averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
+                  averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
+                  qtdDelivery: data.qtdDelivery,
+                  qtdBalcao: data.qtdBalcao,
+                  qtdIFood: data.qtdIFood,
+                  qtdTelefone: data.qtdTelefone,
+                  qtdCentralPedidos: data.qtdCentralPedidos,
+                  qtdDeliveryDireto: data.qtdDeliveryDireto,
+                  totalItems: data.totalItems,
+                  totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
+                  totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
+                  totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                   updatedAt: new Date(),
                 },
               });
@@ -518,39 +569,46 @@ export async function POST(request: Request) {
           while (retries > 0) {
             try {
               const date = new Date(data.date);
-              const channels = data.salesByOrigin
-                ? {
-                    salesByOrigin: data.salesByOrigin,
-                    ordersByChannel: data.ordersByChannel,
-                  }
-                : null;
-
               const upsertResult = await db.salesDaily.upsert({
                 where: {
-                  storeId_date: {
-                    storeId: targetStoreId,
-                    date: date,
-                  },
+                  user_store_date: { userId, storeId: targetStoreId, date },
                 },
                 create: {
+                  userId,
                   storeId: targetStoreId,
-                  date: date,
+                  date,
                   totalOrders: data.totalOrders,
+                  canceledOrders: data.canceledOrders,
                   totalSales: new Prisma.Decimal(data.totalSales),
-                  averageTicket: data.averageTicket
-                    ? new Prisma.Decimal(data.averageTicket)
-                    : null,
-                  uniqueCustomers: data.uniqueCustomers || null,
-                  channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                  averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
+                  averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
+                  qtdDelivery: data.qtdDelivery,
+                  qtdBalcao: data.qtdBalcao,
+                  qtdIFood: data.qtdIFood,
+                  qtdTelefone: data.qtdTelefone,
+                  qtdCentralPedidos: data.qtdCentralPedidos,
+                  qtdDeliveryDireto: data.qtdDeliveryDireto,
+                  totalItems: data.totalItems,
+                  totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
+                  totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
+                  totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                 },
                 update: {
                   totalOrders: data.totalOrders,
+                  canceledOrders: data.canceledOrders,
                   totalSales: new Prisma.Decimal(data.totalSales),
-                  averageTicket: data.averageTicket
-                    ? new Prisma.Decimal(data.averageTicket)
-                    : null,
-                  uniqueCustomers: data.uniqueCustomers || null,
-                  channels: channels ? (channels as Prisma.InputJsonValue) : Prisma.JsonNull,
+                  averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
+                  averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
+                  qtdDelivery: data.qtdDelivery,
+                  qtdBalcao: data.qtdBalcao,
+                  qtdIFood: data.qtdIFood,
+                  qtdTelefone: data.qtdTelefone,
+                  qtdCentralPedidos: data.qtdCentralPedidos,
+                  qtdDeliveryDireto: data.qtdDeliveryDireto,
+                  totalItems: data.totalItems,
+                  totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
+                  totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
+                  totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                   updatedAt: new Date(),
                 },
               });
@@ -581,7 +639,7 @@ export async function POST(request: Request) {
     }
 
     console.log(
-      `✅ Sincronização concluída: ${syncedCount} registros salvos/atualizados`
+      `✅ ${syncedCount} registros sincronizados com sucesso (${totalFetchedAll} pedidos brutos baixados)`
     );
 
     return NextResponse.json({

@@ -251,7 +251,10 @@ export class SaiposAPIService {
       console.log('✅ Dados reais carregados da Saipos:', apiData);
 
       // Converter dados da API para o formato esperado
-      const normalized = normalizeSalesResponse(apiData);
+      const dataArray = Array.isArray(apiData)
+        ? (apiData as unknown[])
+        : (Array.isArray((apiData as any)?.data) ? ((apiData as any).data as unknown[]) : []);
+      const normalized = normalizeSalesResponse(dataArray);
       return normalized;
     } catch (error) {
       console.error('❌ Erro ao obter dados de vendas:', error);
@@ -573,216 +576,71 @@ export function normalizeStoresResponse(apiJson: unknown): SaiposStore[] {
   }
 }
 
-export function normalizeSalesResponse(apiJson: unknown): SaiposSalesData[] {
-  try {
-    // Se a API retornou array diretamente
-    if (Array.isArray(apiJson)) {
-      // Não fazer nada, continuar processando o array diretamente
-    } else if (apiJson && typeof apiJson === 'object') {
-      // Se retornou no formato { data: [...] }
-      const root = apiJson as JsonObject;
-      const candidate = getProp(root, 'data') ?? getProp(root, 'results') ?? getProp(root, 'sales');
-      if (Array.isArray(candidate)) {
-        apiJson = candidate;
-      } else {
-        // Se nenhum dos formatos reconhecidos, retornar array vazio
-        return [];
-      }
-    } else {
-      // Se nenhum dos formatos reconhecidos, retornar array vazio
-      return [];
-    }
+export function normalizeSalesResponse(sales: any[]): any[] {
+  const grouped: Record<string, any> = {};
 
-    // Agora apiJson deve ser um array
-    const salesArray: JsonObject[] = Array.isArray(apiJson) ? apiJson as JsonObject[] : [];
-
-    if (salesArray.length === 0) {
-      return [];
-    }
-
-    // Deduplicar vendas por ID para evitar contar a mesma venda múltiplas vezes
-    const uniqueSalesMap = new Map<string, JsonObject>();
-    salesArray.forEach((sale: JsonObject) => {
-      const saleId = toStringVal(sale.id_sale ?? sale.id ?? sale.numero ?? '');
-      if (saleId && !uniqueSalesMap.has(saleId)) {
-        uniqueSalesMap.set(saleId, sale);
-      } else if (!saleId) {
-        // Se não tem ID, usar uma chave composta por data + número da nota
-        const nfce = getProp(sale, 'nfce');
-        const nfceNum = nfce && typeof nfce === 'object' ? toStringVal((nfce as JsonObject).numero) : '';
-        const compositeKey = `${toStringVal(sale.shift_date ?? sale.created_at ?? sale.date)}_${nfceNum}`;
-        if (!uniqueSalesMap.has(compositeKey)) {
-          uniqueSalesMap.set(compositeKey, sale);
-        }
-      }
-    });
-    
-    const uniqueSalesArray = Array.from(uniqueSalesMap.values());
-    console.log(`🔄 Deduplicação: ${salesArray.length} vendas → ${uniqueSalesArray.length} vendas únicas`);
-
-    // Agrupar vendas por data comercial (shift_date)
-    const salesByDate = new Map<string, JsonObject[]>();
-    
-    uniqueSalesArray.forEach((sale: JsonObject) => {
-      const shiftDate = toStringVal(sale.shift_date ?? sale.created_at ?? sale.date ?? sale.sale_date);
-      // Usar getBusinessDate para calcular a data comercial correta
-      const saleDateObj = new Date(shiftDate);
-      const businessDate = getBusinessDate(saleDateObj);
-      
-      if (!salesByDate.has(businessDate)) {
-        salesByDate.set(businessDate, []);
-      }
-      salesByDate.get(businessDate)!.push(sale);
-    });
-
-    // Converter cada grupo de vendas do dia em SaiposSalesData
-    return Array.from(salesByDate.entries()).map(([date, sales]) => {
-      // Calcular totais por tipo de venda (id_sale_type)
-      // 1=Delivery, 2=Retirada, 3=Salão, 4=Ficha
-      const deliverySales = sales.filter(s => toNumberVal(s.id_sale_type) === 1);
-      const counterSales = sales.filter(s => toNumberVal(s.id_sale_type) === 2);
-      const hallSales = sales.filter(s => toNumberVal(s.id_sale_type) === 3);
-      const ticketSales = sales.filter(s => toNumberVal(s.id_sale_type) === 4);
-
-      // Calcular valores totais usando total_amount ou total_sale_value (já inclui descontos e acréscimos)
-      const totalRevenue = sales.reduce((sum, s) => sum + getTotalSaleValue(s), 0);
-      const totalOrders = sales.length;
-      const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-      // Extrair clientes únicos (contar apenas id_customer únicos)
-      const customerIds = new Set<string>();
-      sales.forEach(s => {
-        const customer = getProp(s, 'customer');
-        if (customer && typeof customer === 'object') {
-          const customerId = toStringVal((customer as JsonObject).id_customer);
-          if (customerId) {
-            customerIds.add(customerId);
-          }
-        }
-      });
-      const uniqueCustomers = customerIds.size;
-
-      // Extrair produtos mais vendidos dos itens (incluindo complementos)
-      const productMap = new Map<string, { quantity: number; revenue: number; name: string }>();
-      
-      sales.forEach((sale: JsonObject) => {
-        const items = asArray(getProp(sale, 'items'));
-        items.forEach((item: JsonObject) => {
-          // Ignorar itens deletados
-          if (item.deleted === true) return;
-          
-          const itemName = toStringVal(item.desc_sale_item || item.desc_store_item || 'Item sem nome');
-          const quantity = toNumberVal(item.quantity);
-          const unitPrice = toNumberVal(item.unit_price);
-          
-          // Adicionar preço de complementos (choices)
-          let additionalPrice = 0;
-          const choices = asArray(getProp(item, 'choices'));
-          choices.forEach((choice: JsonObject) => {
-            additionalPrice += toNumberVal(choice.aditional_price);
-          });
-          
-          const itemTotal = (unitPrice + additionalPrice) * quantity;
-
-          if (productMap.has(itemName)) {
-            const existing = productMap.get(itemName)!;
-            existing.quantity += quantity;
-            existing.revenue += itemTotal;
-          } else {
-            productMap.set(itemName, { quantity, revenue: itemTotal, name: itemName });
-          }
-        });
-      });
-
-      const topProducts = Array.from(productMap.values())
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 10)
-        .map(p => ({ name: p.name, quantity: p.quantity, revenue: p.revenue }));
-
-      // Calcular breakdown por canal/origem
-      const originMap = new Map<string, { quantity: number; revenue: number }>();
-      
-      sales.forEach((sale: JsonObject) => {
-        let originName = 'Sem origem';
-        
-        const partnerSale = getProp(sale, 'partner_sale');
-        if (partnerSale && typeof partnerSale === 'object') {
-          const partnerObj = partnerSale as JsonObject;
-          const partnerName = toStringVal(partnerObj.desc_store_partner || partnerObj.name || partnerObj.partner);
-          if (partnerName && partnerName !== 'null' && partnerName !== '') {
-            originName = partnerName;
-          }
-        }
-        
-        if (originName === 'Sem origem') {
-          const descSale = toStringVal(getProp(sale, 'desc_sale'));
-          if (descSale && descSale !== 'null' && descSale !== '') {
-            originName = descSale;
-          }
-        }
-        
-        if (originName === 'Sem origem') {
-          const origin = toStringVal(getProp(sale, 'origin'));
-          if (origin && origin !== 'null' && origin !== '') {
-            originName = origin;
-          }
-        }
-        
-        // Normalizar nomes
-        originName = originName.toLowerCase();
-        if (originName.includes('ifood')) originName = 'iFood';
-        else if (originName.includes('telefone') || originName.includes('phone')) originName = 'Telefone';
-        else if (originName.includes('delivery direto') || originName.includes('direto')) originName = 'Delivery Direto';
-        else if (originName.includes('central')) originName = 'Central de Pedidos';
-        else if (originName.includes('whatsapp') || originName.includes('wa')) originName = 'WhatsApp';
-        else if (originName.includes('facebook')) originName = 'Facebook';
-        else if (originName.includes('anota')) originName = 'Anota.ai';
-        else originName = originName.charAt(0).toUpperCase() + originName.slice(1);
-        
-        const saleValue = getTotalSaleValue(sale);
-        
-        if (originMap.has(originName)) {
-          const existing = originMap.get(originName)!;
-          existing.quantity += 1;
-          existing.revenue += saleValue;
-        } else {
-          originMap.set(originName, { quantity: 1, revenue: saleValue });
-        }
-      });
-
-      const salesByOrigin = Array.from(originMap.entries())
-        .map(([origin, data]) => ({
-          origin,
-          quantity: data.quantity,
-          revenue: data.revenue,
-        }))
-        .sort((a, b) => b.revenue - a.revenue);
-
-      return {
-        date: date,
-        totalSales: totalRevenue,
-        totalOrders: totalOrders,
-        averageTicket: averageTicket,
-        uniqueCustomers: uniqueCustomers,
-        totalRevenue: totalRevenue,
-        deliverySales: deliverySales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
-        counterSales: counterSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
-        hallSales: hallSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
-        ticketSales: ticketSales.reduce((sum, s) => sum + getTotalSaleValue(s), 0),
-        ordersByChannel: {
-          delivery: deliverySales.length,
-          counter: counterSales.length,
-          hall: hallSales.length,
-          ticket: ticketSales.length,
-        },
-        topProducts: topProducts,
-        salesByOrigin: salesByOrigin,
+  for (const sale of sales) {
+    const dateKey = new Date(sale.shift_date ?? sale.sale_date ?? sale.created_at).toISOString().split("T")[0];
+    if (!grouped[dateKey]) {
+      grouped[dateKey] = {
+        date: dateKey,
+        totalOrders: 0,
+        canceledOrders: 0,
+        totalSales: 0,
+        qtdDelivery: 0,
+        qtdBalcao: 0,
+        qtdIFood: 0,
+        qtdTelefone: 0,
+        qtdCentralPedidos: 0,
+        qtdDeliveryDireto: 0,
+        totalItems: 0,
+        totalDeliveryFee: 0,
+        totalAdditions: 0,
+        totalDiscounts: 0,
+        totalSalesDelivery: 0,
+        totalSalesBalcao: 0,
       };
-    });
-  } catch (error) {
-    console.error('Erro ao normalizar resposta de vendas:', error);
-    return [];
+    }
+
+    const g = grouped[dateKey];
+    g.totalOrders++;
+
+    // Cancelados
+    if (sale.status?.toLowerCase().includes("cancel")) g.canceledOrders++;
+
+    // Valores
+    const value = Number(sale.total_value ?? sale.amount_total ?? 0);
+    g.totalSales += value;
+
+    // Tipo de pedido
+    const type = sale.order_type?.toLowerCase() ?? "";
+    if (type.includes("delivery")) {
+      g.qtdDelivery++;
+      g.totalSalesDelivery += value;
+      g.totalDeliveryFee += Number(sale.delivery_fee ?? 0);
+    } else {
+      g.qtdBalcao++;
+      g.totalSalesBalcao += value;
+    }
+
+    // Canais
+    const channel = (sale.origin_name ?? sale.channel ?? "").toLowerCase();
+    if (channel.includes("ifood")) g.qtdIFood++;
+    else if (channel.includes("telefone")) g.qtdTelefone++;
+    else if (channel.includes("central")) g.qtdCentralPedidos++;
+    else if (channel.includes("delivery direto")) g.qtdDeliveryDireto++;
+
+    // Itens e adicionais
+    g.totalItems += Number(sale.total_items ?? 0);
+    g.totalAdditions += Number(sale.additional_value ?? 0);
+    g.totalDiscounts += Number(sale.discount_value ?? 0);
   }
+
+  return Object.values(grouped).map((g: any) => ({
+    ...g,
+    averageTicketDelivery: g.qtdDelivery > 0 ? g.totalSalesDelivery / g.qtdDelivery : 0,
+    averageTicketBalcao: g.qtdBalcao > 0 ? g.totalSalesBalcao / g.qtdBalcao : 0,
+  }));
 }
 
 export function normalizeDailyResponse(apiJson: unknown): SaiposSalesData {

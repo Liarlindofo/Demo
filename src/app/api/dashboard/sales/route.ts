@@ -2,6 +2,8 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { stackServerApp } from "@/stack";
+import { syncStackAuthUser } from "@/lib/stack-auth-sync";
 
 // GET /api/dashboard/sales - Ler dados de vendas do cache local
 export async function GET(request: Request) {
@@ -15,6 +17,23 @@ export async function GET(request: Request) {
     const endDateParam = url.searchParams.get("endDate"); // Data final quando fornecida
 
     console.log("📊 Parâmetros recebidos:", { storeId, range, specificDate, startDateParam, endDateParam });
+
+    // Autenticação
+    const stackUser = await stackServerApp.getUser({ or: "return-null" });
+    if (!stackUser) {
+      return NextResponse.json(
+        { error: "Não autenticado" },
+        { status: 401 }
+      );
+    }
+    const dbUser = await syncStackAuthUser({
+      id: stackUser.id,
+      primaryEmail: stackUser.primaryEmail || undefined,
+      displayName: stackUser.displayName || undefined,
+      profileImageUrl: stackUser.profileImageUrl || undefined,
+      primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
+    });
+    const userId = dbUser.id;
 
     if (!storeId) {
       console.error("❌ storeId não fornecido");
@@ -87,19 +106,19 @@ export async function GET(request: Request) {
       throw new Error("Modelo salesDaily não está disponível. Execute 'npx prisma generate' para regenerar o Prisma Client.");
     }
     
-    // Verificar se há dados no banco para este storeId
+    // Verificar se há dados no banco para este userId + storeId
     let totalRecords = 0;
     let allRecords: Array<{ date: Date; totalSales: unknown; totalOrders: number }> = [];
     
     try {
       totalRecords = await db.salesDaily.count({
-        where: { storeId: storeId },
+        where: { userId, storeId: storeId },
       });
       console.log(`📊 Total de registros no banco para storeId "${storeId}": ${totalRecords}`);
       
       // Buscar todos os registros para debug
       allRecords = await db.salesDaily.findMany({
-        where: { storeId: storeId },
+        where: { userId, storeId: storeId },
         select: { date: true, totalSales: true, totalOrders: true },
         take: 5,
         orderBy: { date: "desc" },
@@ -116,6 +135,7 @@ export async function GET(request: Request) {
       // Adicionar timeout para evitar travamento do pool
       const queryPromise = db.salesDaily.findMany({
         where: {
+          userId,
           storeId: storeId,
           date: {
             gte: startDate,
@@ -126,9 +146,6 @@ export async function GET(request: Request) {
           date: true,
           totalSales: true,
           totalOrders: true,
-          averageTicket: true,
-          uniqueCustomers: true,
-          channels: true,
         },
         orderBy: {
           date: "asc",
@@ -195,8 +212,9 @@ export async function GET(request: Request) {
             console.log(`📊 Buscando dados mais recentes disponíveis: ${fallbackStartDate.toISOString().split('T')[0]} até ${recentDate.toISOString().split('T')[0]}`);
             
             try {
-              const fallbackQueryPromise = db.salesDaily.findMany({
+            const fallbackQueryPromise = db.salesDaily.findMany({
                 where: {
+                  userId,
                   storeId: storeId,
                   date: {
                     gte: fallbackStartDate,
@@ -207,9 +225,6 @@ export async function GET(request: Request) {
                   date: true,
                   totalSales: true,
                   totalOrders: true,
-                  averageTicket: true,
-                  uniqueCustomers: true,
-                  channels: true,
                 },
                 orderBy: {
                   date: "asc",
@@ -273,33 +288,16 @@ export async function GET(request: Request) {
           totalSalesNum = 0;
         }
         
-        // Converter averageTicket (pode ser null)
-        let averageTicketNum: number = 0;
-        try {
-          if (item.averageTicket !== null && item.averageTicket !== undefined) {
-            // Verificar se é Prisma.Decimal
-            if (item.averageTicket && typeof item.averageTicket === 'object' && 'toNumber' in item.averageTicket) {
-              averageTicketNum = (item.averageTicket as Prisma.Decimal).toNumber();
-            } else if (typeof item.averageTicket === 'string') {
-              averageTicketNum = parseFloat(item.averageTicket) || 0;
-            } else if (typeof item.averageTicket === 'number') {
-              averageTicketNum = item.averageTicket;
-            } else {
-              averageTicketNum = Number(item.averageTicket) || 0;
-            }
-          }
-        } catch (e) {
-          console.error(`Erro ao converter averageTicket no item ${index}:`, e, item.averageTicket);
-          averageTicketNum = 0;
-        }
+        // Converter averageTicket (calculado on-the-fly)
+        const averageTicketNum: number = (item.totalOrders || 0) > 0 ? (totalSalesNum / (item.totalOrders || 0)) : 0;
         
         return {
           date: dateStr,
           totalSales: totalSalesNum,
           totalOrders: item.totalOrders || 0,
           averageTicket: averageTicketNum,
-          uniqueCustomers: item.uniqueCustomers || 0,
-          channels: item.channels || null,
+          uniqueCustomers: 0,
+          channels: null,
         };
       } catch (error) {
         console.error(`❌ Erro ao converter item ${index}:`, error, item);
