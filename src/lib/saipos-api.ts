@@ -253,7 +253,7 @@ export class SaiposAPIService {
       // Converter dados da API para o formato esperado
       const dataArray = Array.isArray(apiData)
         ? (apiData as unknown[])
-        : (Array.isArray((apiData as any)?.data) ? ((apiData as any).data as unknown[]) : []);
+        : (Array.isArray((apiData as Record<string, unknown>)?.data) ? ((apiData as Record<string, unknown>).data as unknown[]) : []);
       const normalized = normalizeSalesResponse(dataArray);
       return normalized;
     } catch (error) {
@@ -576,8 +576,8 @@ export function normalizeStoresResponse(apiJson: unknown): SaiposStore[] {
   }
 }
 
-export function normalizeSalesResponse(sales: any[]): any[] {
-  const grouped: Record<string, any> = {};
+export function normalizeSalesResponse(sales: SaiposRawSale[]): NormalizedSalesData[] {
+  const grouped: Record<string, Omit<NormalizedSalesData, 'averageTicketDelivery' | 'averageTicketBalcao'>> = {};
 
   for (const sale of sales) {
     const dateKey = new Date(sale.shift_date ?? sale.sale_date ?? sale.created_at).toISOString().split("T")[0];
@@ -636,7 +636,7 @@ export function normalizeSalesResponse(sales: any[]): any[] {
     g.totalDiscounts += Number(sale.discount_value ?? 0);
   }
 
-  return Object.values(grouped).map((g: any) => ({
+  return Object.values(grouped).map((g) => ({
     ...g,
     averageTicketDelivery: g.qtdDelivery > 0 ? g.totalSalesDelivery / g.qtdDelivery : 0,
     averageTicketBalcao: g.qtdBalcao > 0 ? g.totalSalesBalcao / g.qtdBalcao : 0,

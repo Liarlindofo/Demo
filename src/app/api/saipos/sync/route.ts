@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { normalizeSalesResponse } from "@/lib/saipos-api";
+import { normalizeSalesResponse, type SaiposRawSale } from "@/lib/saipos-api";
 import { Prisma } from "@prisma/client";
 import { stackServerApp } from "@/stack";
 import { syncStackAuthUser } from "@/lib/stack-auth-sync";
@@ -319,7 +319,7 @@ export async function POST(request: Request) {
           totalFetchedAll += totalFetched;
 
           if (sales.length > 0) {
-            const normalized = normalizeSalesResponse(sales as any[]);
+            const normalized = normalizeSalesResponse(sales as SaiposRawSale[]);
 
             // Usar transação para salvar múltiplos registros de uma vez
             // Isso evita abrir muitas conexões simultaneamente
@@ -474,7 +474,7 @@ export async function POST(request: Request) {
 
       // Normalizar dados
       console.log(`📊 Normalizando ${sales.length} vendas...`);
-      const normalized = normalizeSalesResponse(sales as any[]);
+      const normalized = normalizeSalesResponse(sales as SaiposRawSale[]);
       console.log(`📊 ${normalized.length} vendas normalizadas`);
 
       if (normalized.length === 0) {
