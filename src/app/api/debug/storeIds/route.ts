@@ -12,14 +12,14 @@ export async function GET() {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    const dbUser = await syncStackAuthUser({
+    // Garantir usuário no banco (mas não precisamos do userId para este endpoint de debug)
+    await syncStackAuthUser({
       id: stackUser.id,
       primaryEmail: stackUser.primaryEmail || undefined,
       displayName: stackUser.displayName || undefined,
       profileImageUrl: stackUser.profileImageUrl || undefined,
       primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
     });
-    const userId = dbUser.id;
 
     // Retornar os 20 últimos registros de salesDaily para inspeção
     const rows = await db.salesDaily.findMany({

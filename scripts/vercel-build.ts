@@ -40,6 +40,17 @@ async function main() {
         // Continuar mesmo se a migração falhar
       }
       
+      // Segundo, executar backfill de userId em sales_daily ANTES do db:push
+      // Isso corrige registros com userId NULL para que o db:push não falhe
+      console.log('\n🔄 Executando backfill de userId em sales_daily...');
+      try {
+        runCommand('tsx scripts/backfill-user-ids.ts', 'Backfill de userId');
+      } catch (backfillError) {
+        console.warn('⚠️  Aviso: Erro no backfill de userId (continuando mesmo assim)');
+        console.warn('   Você pode executar manualmente: POST /api/debug/fix-store-ownership');
+        // Continuar mesmo se o backfill falhar
+      }
+      
       // Depois, fazer db:push
       runCommand('npm run db:push', 'Criando/atualizando tabelas do banco');
     } catch (error) {

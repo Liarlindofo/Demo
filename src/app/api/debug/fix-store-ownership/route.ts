@@ -50,30 +50,35 @@ export async function POST() {
         continue;
       }
 
-      const updateResult = await db.salesDaily.updateMany({
-        where: {
-          storeId: api.storeId,
-          OR: [
-            { userId: null },
-            { userId: "" },
-            { userId: { not: api.userId } }, // Também corrigir userIds incorretos
-          ],
-        },
-        data: {
-          userId: api.userId,
-        },
-      });
+      // Usar SQL raw para atualizar registros com userId null ou incorreto
+      // Como userId agora é obrigatório no schema, não podemos usar { userId: null } diretamente
+      const updateResult = await db.$executeRaw`
+        UPDATE sales_daily
+        SET "userId" = ${api.userId}
+        WHERE "storeId" = ${api.storeId}
+          AND ("userId" IS NULL OR "userId" = '' OR "userId" != ${api.userId})
+      `;
+      
+      // Para obter o count, fazer uma query separada
+      const countResult = await db.$queryRaw<Array<{ count: bigint }>>`
+        SELECT COUNT(*) as count
+        FROM sales_daily
+        WHERE "storeId" = ${api.storeId}
+          AND ("userId" IS NULL OR "userId" = '' OR "userId" != ${api.userId})
+      `;
+      
+      const count = Number(countResult[0]?.count || 0);
 
-      if (updateResult.count > 0) {
-        totalFixed += updateResult.count;
+      if (count > 0) {
+        totalFixed += count;
         results.push({
           apiId: api.id,
           apiName: api.name,
           storeId: api.storeId,
-          fixed: updateResult.count,
+          fixed: count,
         });
         console.log(
-          `✅ API "${api.name}" (${api.storeId}): ${updateResult.count} registros corrigidos`
+          `✅ API "${api.name}" (${api.storeId}): ${count} registros corrigidos`
         );
       }
     }
