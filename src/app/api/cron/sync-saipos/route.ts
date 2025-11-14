@@ -9,15 +9,21 @@ export async function GET() {
   const { start, end } = computeBRTWindow(15)
 
   const apis = await prisma.userAPI.findMany({
-    where: { type: 'saipos', enabled: true, storeId: { not: null } },
+    where: { type: 'saipos', enabled: true },
     select: { id: true, storeId: true },
   })
 
   const results = []
   for (const api of apis) {
+    // Filtrar apenas APIs com storeId válido
+    if (!api.storeId) {
+      console.warn(`⚠️ API ${api.id} não tem storeId, pulando...`);
+      continue;
+    }
+    
     const res = await syncSaiposForApi({
       apiId: api.id,
-      storeId: api.storeId ?? undefined,
+      storeId: api.storeId,
       start,
       end,
     })

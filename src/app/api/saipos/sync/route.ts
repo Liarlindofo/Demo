@@ -200,18 +200,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // Garantir usuário no banco e obter userId interno
-    const dbUser = await syncStackAuthUser({
+    // Garantir usuário no banco (necessário para autenticação)
+    await syncStackAuthUser({
       id: stackUser.id,
       primaryEmail: stackUser.primaryEmail || undefined,
       displayName: stackUser.displayName || undefined,
       profileImageUrl: stackUser.profileImageUrl || undefined,
       primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
     });
-    // userId será obtido da API abaixo, não do dbUser
+    // userId será obtido da API abaixo (api.userId)
 
     const body = (await request.json()) as SyncRequest;
-    const { apiId, storeId, startDate, endDate, initialLoad } = body;
+    const { apiId, startDate, endDate, initialLoad } = body;
 
     if (!apiId) {
       console.error("❌ apiId não fornecido");
@@ -578,10 +578,10 @@ export async function POST(request: Request) {
               const date = new Date(data.date);
               const upsertResult = await db.salesDaily.upsert({
                 where: {
-                  user_store_date: { userId, storeId: targetStoreId, date },
+                  user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
                 },
                 create: {
-                  userId,
+                  userId: apiUserId,
                   storeId: targetStoreId,
                   date,
                   totalOrders: data.totalOrders,

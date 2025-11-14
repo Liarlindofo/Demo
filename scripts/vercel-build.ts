@@ -31,6 +31,16 @@ async function main() {
   if (hasDatabaseUrl) {
     console.log('\n📊 DATABASE_URL encontrada, criando/atualizando tabelas...');
     try {
+      // Primeiro, executar migração de storeIds se necessário
+      console.log('\n🔄 Executando migração de storeIds...');
+      try {
+        runCommand('tsx scripts/migrate-store-ids.ts', 'Migrando storeIds');
+      } catch (migrateError) {
+        console.warn('⚠️  Aviso: Erro na migração de storeIds (pode ser que não haja registros para migrar)');
+        // Continuar mesmo se a migração falhar
+      }
+      
+      // Depois, fazer db:push
       runCommand('npm run db:push', 'Criando/atualizando tabelas do banco');
     } catch (error) {
       console.error('\n⚠️  Aviso: Erro ao criar tabelas. O build continuará, mas o banco pode não estar sincronizado.');
