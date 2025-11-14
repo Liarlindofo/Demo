@@ -12,7 +12,7 @@ async function main() {
     const db = new PrismaClient();
     
     // Verificar se o modelo salesDaily existe
-    if (!db.salesDaily) {
+    const salesDailyModel = (db as { salesDaily?: unknown }).salesDaily; if (!salesDailyModel) {
       console.error('❌ Modelo salesDaily não encontrado no Prisma Client');
       console.log('\n💡 Solução: Execute os seguintes comandos:');
       console.log('   1. npx prisma generate');
@@ -29,7 +29,7 @@ async function main() {
       
       // Verificar se a tabela existe
       try {
-        const count = await db.salesDaily.count();
+        const count = await (db as unknown as { salesDaily: { count: () => Promise<number> } }).salesDaily.count();
         console.log(`✅ Tabela sales_daily existe e tem ${count} registros`);
       } catch (error) {
         console.error('❌ Erro ao acessar tabela sales_daily:', error);
