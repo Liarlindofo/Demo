@@ -254,8 +254,24 @@ export class SaiposAPIService {
       const dataArray = Array.isArray(apiData)
         ? (apiData as unknown[])
         : (Array.isArray((apiData as Record<string, unknown>)?.data) ? ((apiData as Record<string, unknown>).data as unknown[]) : []);
-      const normalized = normalizeSalesResponse(dataArray);
-      return normalized;
+      const normalized = normalizeSalesResponse(dataArray as SaiposRawSale[]);
+      // Converter NormalizedSalesData para SaiposSalesData
+      return normalized.map(n => ({
+        date: n.date,
+        totalSales: n.totalSales,
+        totalOrders: n.totalOrders,
+        averageTicket: n.totalOrders > 0 ? n.totalSales / n.totalOrders : 0,
+        uniqueCustomers: 0, // Não disponível nos dados normalizados
+        totalRevenue: n.totalSales,
+        ordersByChannel: {
+          delivery: n.qtdDelivery,
+          counter: n.qtdBalcao,
+          hall: 0,
+          ticket: 0,
+        },
+        topProducts: [],
+        salesByOrigin: [],
+      }));
     } catch (error) {
       console.error('❌ Erro ao obter dados de vendas:', error);
       throw error; // Propagar erro em vez de retornar mock
@@ -576,11 +592,52 @@ export function normalizeStoresResponse(apiJson: unknown): SaiposStore[] {
   }
 }
 
+// Tipo para dados brutos de venda da API Saipos
+export interface SaiposRawSale {
+  shift_date?: string;
+  sale_date?: string;
+  created_at?: string;
+  status?: string;
+  total_value?: number;
+  amount_total?: number;
+  order_type?: string;
+  origin_name?: string;
+  channel?: string;
+  total_items?: number;
+  additional_value?: number;
+  discount_value?: number;
+  delivery_fee?: number;
+  [key: string]: unknown; // Permitir campos adicionais da API
+}
+
+// Tipo para dados normalizados de vendas
+export interface NormalizedSalesData {
+  date: string;
+  totalOrders: number;
+  canceledOrders: number;
+  totalSales: number;
+  qtdDelivery: number;
+  qtdBalcao: number;
+  qtdIFood: number;
+  qtdTelefone: number;
+  qtdCentralPedidos: number;
+  qtdDeliveryDireto: number;
+  totalItems: number;
+  totalDeliveryFee: number;
+  totalAdditions: number;
+  totalDiscounts: number;
+  totalSalesDelivery: number;
+  totalSalesBalcao: number;
+  averageTicketDelivery: number;
+  averageTicketBalcao: number;
+}
+
 export function normalizeSalesResponse(sales: SaiposRawSale[]): NormalizedSalesData[] {
   const grouped: Record<string, Omit<NormalizedSalesData, 'averageTicketDelivery' | 'averageTicketBalcao'>> = {};
 
   for (const sale of sales) {
-    const dateKey = new Date(sale.shift_date ?? sale.sale_date ?? sale.created_at).toISOString().split("T")[0];
+    const saleDate = sale.shift_date ?? sale.sale_date ?? sale.created_at ?? new Date().toISOString();
+    const dateKey = new Date(saleDate).toISOString().split("T")[0];
     if (!grouped[dateKey]) {
       grouped[dateKey] = {
         date: dateKey,
