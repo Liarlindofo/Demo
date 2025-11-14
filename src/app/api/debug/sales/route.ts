@@ -1,4 +1,4 @@
-export const runtime = "nodejs";
+﻿export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -14,9 +14,9 @@ export async function GET(request: Request) {
         select: { storeId: true },
         distinct: ["storeId"],
       });
-      
+
       const storeIds = allStores.map(s => s.storeId);
-      
+
       return NextResponse.json({
         message: "storeId não fornecido. StoreIds disponíveis:",
         storeIds,
@@ -26,19 +26,19 @@ export async function GET(request: Request) {
 
     // Contar total de registros
     const totalRecords = await db.salesDaily.count({
-      where: { storeId: storeId },
+      where: { storeId },
     });
 
     // Buscar todos os registros
     const allRecords = await db.salesDaily.findMany({
-      where: { storeId: storeId },
+      where: { storeId },
       orderBy: { date: "desc" },
       take: 50,
     });
 
     // Buscar registros mais recentes
     const recentRecords = await db.salesDaily.findMany({
-      where: { storeId: storeId },
+      where: { storeId },
       orderBy: { date: "desc" },
       take: 10,
     });
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       totalRecords,
       oldestDate: allRecords.length > 0 ? allRecords[allRecords.length - 1].date : null,
       newestDate: allRecords.length > 0 ? allRecords[0].date : null,
-      dateRange: allRecords.length > 0 
+      dateRange: allRecords.length > 0
         ? {
             from: allRecords[allRecords.length - 1].date,
             to: allRecords[0].date,
@@ -63,19 +63,19 @@ export async function GET(request: Request) {
         date: r.date,
         totalSales: r.totalSales,
         totalOrders: r.totalOrders,
-        averageTicket: r.averageTicket,
-        uniqueCustomers: r.uniqueCustomers,
+        averageTicketDelivery: r.averageTicketDelivery,
+        averageTicketBalcao: r.averageTicketBalcao,
       })),
       allRecords: allRecords.map(r => ({
         date: r.date,
         totalSales: r.totalSales,
         totalOrders: r.totalOrders,
-        averageTicket: r.averageTicket,
-        uniqueCustomers: r.uniqueCustomers,
+        averageTicketDelivery: r.averageTicketDelivery,
+        averageTicketBalcao: r.averageTicketBalcao,
       })),
     });
   } catch (error) {
-    console.error("❌ Erro ao buscar dados de debug:", error);
+    console.error(" Erro ao buscar dados de debug:", error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : String(error),
@@ -84,4 +84,3 @@ export async function GET(request: Request) {
     );
   }
 }
-
