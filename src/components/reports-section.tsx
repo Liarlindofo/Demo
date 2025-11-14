@@ -156,7 +156,11 @@ export function ReportsSection() {
       const startDateOnly = dateStart.split('T')[0];
       const endDateOnly = dateEnd.split('T')[0];
 
-      console.log("📊 Carregando dados do banco - storeId:", storeId, "período:", startDateOnly, "a", endDateOnly);
+      console.log("📊 [UI] Carregando dados do banco");
+      console.log("📊 [UI] StoreId enviado:", storeId);
+      console.log("📊 [UI] targetApi completo:", { id: targetApi.id, name: targetApi.name, type: targetApi.type });
+      console.log("📊 [UI] selectedStore:", selectedStore);
+      console.log("📊 [UI] Período:", startDateOnly, "a", endDateOnly);
 
       // Chamar o novo endpoint /api/dashboard/metrics
       const urlParams = new URLSearchParams({
@@ -183,21 +187,27 @@ export function ReportsSection() {
       const resp = await res.json();
       
       if (!resp.success) {
-        throw new Error(resp.error || "Erro ao buscar dados");
+        const errorMsg = resp.error || "Erro ao buscar dados";
+        console.error('❌ Erro na resposta da API:', errorMsg);
+        if (resp.debug) {
+          console.error('❌ Debug info:', resp.debug);
+          console.error('❌ StoreIds disponíveis:', resp.debug.available);
+        }
+        throw new Error(errorMsg);
       }
 
       const { cards, series, debug } = resp.data;
 
-      // Log debug em desenvolvimento
-      if (process.env.NODE_ENV === 'development' && cards.totalOrders === 0) {
-        console.log('🔍 Debug - where usado:', debug);
+      // Log debug sempre que não houver dados
+      if (series.length === 0 || cards.totalOrders === 0) {
+        console.warn('⚠️ Nenhuma venda encontrada no banco para o período');
+        console.warn('⚠️ StoreId usado:', storeId);
+        console.warn('⚠️ Período:', startDateOnly, 'a', endDateOnly);
+        console.warn('⚠️ Debug info:', debug);
       }
 
       // Se não houver dados, mostrar mensagem
       if (series.length === 0) {
-        console.warn('⚠️ Nenhuma venda encontrada no banco para o período');
-        console.warn('⚠️ StoreId usado:', storeId);
-        console.warn('⚠️ Período:', startDateOnly, 'a', endDateOnly);
         setSalesData([]);
         updateDashboardData({ 
           totalSales: 0, 

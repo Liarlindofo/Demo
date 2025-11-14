@@ -4,6 +4,10 @@ import { db } from "@/lib/db";
 import { stackServerApp } from "@/stack";
 import { syncStackAuthUser } from "@/lib/stack-auth-sync";
 
+function normalizeStoreId(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 export async function GET(req: Request) {
   try {
     const stackUser = await stackServerApp.getUser({ or: "return-null" });
@@ -23,27 +27,92 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const start = url.searchParams.get("start");
     const end = url.searchParams.get("end");
-    const storeId = url.searchParams.get("storeId");
+    const storeIdRaw = url.searchParams.get("storeId");
 
-    if (!start || !end || !storeId) {
+    if (!start || !end || !storeIdRaw) {
       return NextResponse.json({ error: "missing params" }, { status: 400 });
     }
+
+    // Normalizar storeId
+    const normalizedStoreId = normalizeStoreId(storeIdRaw);
+    console.log("⚠️ StoreId recebido (raw):", storeIdRaw);
+    console.log("⚠️ StoreId normalizado:", normalizedStoreId);
 
     // janela UTC-3 completa
     const startDate = new Date(`${start}T00:00:00-03:00`);
     const endDate = new Date(`${end}T23:59:59-03:00`);
 
+    console.log("⚠️ Período:", { start, end, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+
+    // Buscar storeIds reais no banco para comparar
+    const realStoreIds = await db.salesDaily.findMany({
+      where: { userId },
+      select: { storeId: true },
+      distinct: ["storeId"],
+    });
+    const normalizedRealStoreIds = realStoreIds.map(r => normalizeStoreId(r.storeId));
+    console.log("⚠️ StoreIds reais no banco (raw):", realStoreIds.map(r => r.storeId));
+    console.log("⚠️ StoreIds reais no banco (normalizados):", normalizedRealStoreIds);
+
+    // Encontrar o storeId real que corresponde ao normalizado
+    const matchingStoreId = realStoreIds.find(r => normalizeStoreId(r.storeId) === normalizedStoreId);
+    
+    if (!matchingStoreId) {
+      console.error("❌ StoreId não encontrado no banco!");
+      console.error("  - StoreId recebido (raw):", storeIdRaw);
+      console.error("  - StoreId normalizado:", normalizedStoreId);
+      console.error("  - StoreIds disponíveis:", realStoreIds.map(r => r.storeId));
+      return NextResponse.json({ 
+        success: false, 
+        error: `StoreId "${storeIdRaw}" não encontrado no banco. StoreIds disponíveis: ${realStoreIds.map(r => r.storeId).join(", ")}`,
+        debug: {
+          received: storeIdRaw,
+          normalized: normalizedStoreId,
+          available: realStoreIds.map(r => r.storeId),
+        }
+      }, { status: 404 });
+    }
+
+    const actualStoreId = matchingStoreId.storeId;
+    console.log("⚠️ StoreId real encontrado no banco:", actualStoreId);
+
     const where = {
       userId,
-      storeId,
       date: { gte: startDate, lte: endDate },
-    } as const;
+      storeId: actualStoreId, // Usar o storeId exato do banco
+    };
+
+    console.log("⚠️ Where aplicado:", JSON.stringify(where, null, 2));
+
+    // Verificar quantos registros existem antes do filtro
+    const totalCount = await db.salesDaily.count({
+      where: { userId },
+    });
+    const countWithStoreId = await db.salesDaily.count({
+      where: { userId, storeId: actualStoreId },
+    });
+    const countWithDateRange = await db.salesDaily.count({
+      where: { userId, date: { gte: startDate, lte: endDate } },
+    });
+    console.log("⚠️ Contagens de debug:");
+    console.log("  - Total registros para userId:", totalCount);
+    console.log("  - Registros com storeId normalizado:", countWithStoreId);
+    console.log("  - Registros no período:", countWithDateRange);
 
     // Série diária (para gráficos / tabela)
     const rows = await db.salesDaily.findMany({
       where,
       orderBy: { date: "asc" },
     });
+
+    console.log("⚠️ Registros encontrados após filtro completo:", rows.length);
+    if (rows.length > 0) {
+      console.log("⚠️ Primeiro registro:", {
+        storeId: rows[0].storeId,
+        date: rows[0].date,
+        totalOrders: rows[0].totalOrders,
+      });
+    }
 
     // Agregados dos cards
     // OBS: Prisma aggregate com Decimal -> converter para Number
