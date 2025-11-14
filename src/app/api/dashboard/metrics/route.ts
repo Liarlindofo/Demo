@@ -32,25 +32,32 @@ export async function GET(req: Request) {
     console.log("⚠️ UI storeId:", storeIdRaw);
     console.log("⚠️ userId:", userId);
 
-    // Validar que o storeId pertence ao usuário
-    const validStoreIds = await db.salesDaily.findMany({
-      select: { storeId: true },
-      where: { userId },
-      distinct: ["storeId"],
+    // Validar que o storeId pertence ao usuário usando user_apis como fonte da verdade
+    const store = await db.userAPI.findFirst({
+      where: {
+        storeId: storeIdRaw,
+        userId: userId,
+        type: "saipos",
+      },
     });
-    
-    const validStoreIdList = validStoreIds.map(v => v.storeId);
-    console.log("⚠️ StoreIds válidos para este usuário:", validStoreIdList);
 
-    if (!validStoreIdList.includes(storeIdRaw)) {
+    if (!store) {
+      console.error("❌ StoreId não encontrado em user_apis para este usuário");
+      // Buscar storeIds disponíveis para debug
+      const availableStores = await db.userAPI.findMany({
+        where: { userId, type: "saipos" },
+        select: { storeId: true, name: true },
+      });
       return NextResponse.json({ 
         success: false,
         error: `StoreId "${storeIdRaw}" não pertence ao usuário.`,
-        available: validStoreIdList
+        available: availableStores.map(s => ({ storeId: s.storeId, name: s.name }))
       }, { status: 403 });
     }
 
-    // Usar storeId exato (sem normalização, já validado)
+    console.log("✅ StoreId validado:", { storeId: store.storeId, apiName: store.name });
+
+    // Usar storeId exato da validação
     const targetStoreId = storeIdRaw;
 
     // janela UTC-3 completa

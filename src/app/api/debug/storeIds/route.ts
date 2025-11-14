@@ -21,23 +21,40 @@ export async function GET() {
     });
     const userId = dbUser.id;
 
+    // Retornar os 20 últimos registros de salesDaily para inspeção
     const rows = await db.salesDaily.findMany({
-      select: { 
-        storeId: true,
+      select: {
         userId: true,
+        storeId: true,
         date: true,
         totalOrders: true,
         totalSales: true,
       },
-      where: { userId },
       orderBy: { date: "desc" },
-      take: 100, // Limitar para não sobrecarregar
+      take: 20,
+    });
+
+    // Também retornar as APIs para comparação
+    const apis = await db.userAPI.findMany({
+      where: { type: "saipos" },
+      select: {
+        id: true,
+        userId: true,
+        storeId: true,
+        name: true,
+      },
     });
     
     return NextResponse.json({ 
       success: true, 
-      data: rows,
-      count: rows.length 
+      salesDaily: rows,
+      apis,
+      summary: {
+        totalSalesRecords: rows.length,
+        totalApis: apis.length,
+        salesWithUserId: rows.filter(r => r.userId).length,
+        salesWithoutUserId: rows.filter(r => !r.userId).length,
+      }
     });
   } catch (e) {
     console.error("debug storeIds error:", e);

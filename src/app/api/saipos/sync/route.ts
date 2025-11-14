@@ -360,6 +360,7 @@ export async function POST(request: Request) {
                         totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                       },
                       update: {
+                        userId: apiUserId, // Garantir que userId fica setado
                         totalOrders: data.totalOrders,
                         canceledOrders: data.canceledOrders,
                         totalSales: new Prisma.Decimal(data.totalSales),

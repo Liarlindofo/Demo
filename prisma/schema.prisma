@@ -130,7 +130,7 @@ model StackSession {
 
 model SalesDaily {
   id                     String   @id @default(cuid())
-  userId                 String?
+  userId                 String   // Obrigatório: sempre deve ter userId da API
   storeId                String
   date                   DateTime
 

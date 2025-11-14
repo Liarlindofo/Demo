@@ -1,0 +1,98 @@
+export const runtime = "nodejs";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { stackServerApp } from "@/stack";
+import { syncStackAuthUser } from "@/lib/stack-auth-sync";
+
+/**
+ * Rota TEMPORÁRIA de manutenção para corrigir userId em sales_daily
+ * 
+ * Backfill: atualiza registros em sales_daily que têm storeId mas userId está null ou incorreto
+ * usando a tabela user_apis como fonte da verdade.
+ * 
+ * IMPORTANTE: Esta rota é apenas para uso interno. Após rodar uma vez em produção e verificar,
+ * pode ser apagada ou deixar protegida por algum segredo.
+ */
+export async function POST() {
+  try {
+    // Autenticação básica (pode adicionar proteção adicional se necessário)
+    const stackUser = await stackServerApp.getUser({ or: "return-null" });
+    if (!stackUser) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+
+    // Garantir usuário no banco
+    await syncStackAuthUser({
+      id: stackUser.id,
+      primaryEmail: stackUser.primaryEmail || undefined,
+      displayName: stackUser.displayName || undefined,
+      profileImageUrl: stackUser.profileImageUrl || undefined,
+      primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
+    });
+
+    console.log("🔄 Iniciando backfill de userId em sales_daily...");
+
+    // Ler todas as APIs Saipos na user_apis
+    const apis = await db.userAPI.findMany({
+      where: { type: "saipos" },
+      select: { id: true, userId: true, storeId: true, name: true },
+    });
+
+    console.log(`📊 Encontradas ${apis.length} APIs Saipos`);
+
+    let totalFixed = 0;
+    const results = [];
+
+    // Para cada API, fazer updateMany em salesDaily
+    for (const api of apis) {
+      if (!api.storeId) {
+        console.warn(`⚠️ API ${api.name} (${api.id}) não tem storeId, pulando...`);
+        continue;
+      }
+
+      const updateResult = await db.salesDaily.updateMany({
+        where: {
+          storeId: api.storeId,
+          OR: [
+            { userId: null },
+            { userId: "" },
+            { userId: { not: api.userId } }, // Também corrigir userIds incorretos
+          ],
+        },
+        data: {
+          userId: api.userId,
+        },
+      });
+
+      if (updateResult.count > 0) {
+        totalFixed += updateResult.count;
+        results.push({
+          apiId: api.id,
+          apiName: api.name,
+          storeId: api.storeId,
+          fixed: updateResult.count,
+        });
+        console.log(
+          `✅ API "${api.name}" (${api.storeId}): ${updateResult.count} registros corrigidos`
+        );
+      }
+    }
+
+    console.log(`✅ Backfill concluído! Total de registros corrigidos: ${totalFixed}`);
+
+    return NextResponse.json({
+      success: true,
+      fixed: totalFixed,
+      apisProcessed: apis.length,
+      results,
+      message: "Backfill de userId em sales_daily concluído",
+    });
+  } catch (e) {
+    console.error("❌ Erro no backfill:", e);
+    return NextResponse.json(
+      { success: false, error: String(e) },
+      { status: 500 }
+    );
+  }
+}
+
