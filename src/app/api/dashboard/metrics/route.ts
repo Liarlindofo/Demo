@@ -3,14 +3,6 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { stackServerApp } from "@/stack";
 import { syncStackAuthUser } from "@/lib/stack-auth-sync";
-import { Prisma } from "@prisma/client";
-
-function brtIsoRange(dStr: string) {
-  const only = dStr.split("T")[0];
-  const start = new Date(`${only}T00:00:00-03:00`);
-  const end = new Date(`${only}T23:59:59-03:00`);
-  return { start, end };
-}
 
 export async function GET(req: Request) {
   try {
@@ -81,12 +73,12 @@ export async function GET(req: Request) {
     const sum = agg._sum;
     const avg = agg._avg;
 
-    const toNum = (v: any) =>
-      v === null || v === undefined
-        ? 0
-        : typeof v === "number"
-        ? v
-        : Number(v);
+    const toNum = (v: unknown): number => {
+      if (v === null || v === undefined) return 0;
+      if (typeof v === "number") return v;
+      const num = Number(v);
+      return Number.isNaN(num) ? 0 : num;
+    };
 
     const payload = {
       cards: {

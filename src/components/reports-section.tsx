@@ -74,10 +74,6 @@ export function ReportsSection() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [waOpen, setWaOpen] = useState(false);
   const [waPhone, setWaPhone] = useState("");
-  
-  // Cache local para evitar requisições desnecessárias (usando ref para evitar re-renders)
-  const dataCacheRef = useRef<Map<string, { data: SaiposSalesData[], timestamp: number }>>(new Map());
-  const CACHE_DURATION = 30000; // 30 segundos de cache
 
   const handlePeriodChange = (period: string) => {
     setSelectedPeriod(period);
@@ -214,24 +210,49 @@ export function ReportsSection() {
       }
 
       // Converter série para formato esperado pelo componente
-      const normalized = series.map((item: any) => ({
-        date: typeof item.date === 'string' 
-          ? item.date.split('T')[0] 
-          : new Date(item.date).toISOString().split('T')[0],
-        totalSales: item.totalSales || 0,
-        totalOrders: item.totalOrders || 0,
-        averageTicket: item.totalOrders > 0 ? item.totalSales / item.totalOrders : 0,
-        uniqueCustomers: 0, // Não disponível em sales_daily
-        totalRevenue: item.totalSales || 0,
-        salesByOrigin: [], // Não disponível em sales_daily
-        ordersByChannel: {
-          delivery: item.qtdDelivery || 0,
-          counter: item.qtdBalcao || 0,
-          hall: 0,
-          ticket: 0,
-        },
-        topProducts: [],
-      }));
+      interface SeriesItem {
+        date: Date | string;
+        totalOrders: number;
+        canceledOrders?: number;
+        totalSales: number | string;
+        averageTicketDelivery?: number | string | null;
+        averageTicketBalcao?: number | string | null;
+        qtdDelivery?: number;
+        qtdBalcao?: number;
+        qtdIFood?: number;
+        qtdTelefone?: number;
+        qtdCentralPedidos?: number;
+        qtdDeliveryDireto?: number;
+        totalItems?: number;
+        totalDeliveryFee?: number | string | null;
+        totalAdditions?: number | string | null;
+        totalDiscounts?: number | string | null;
+      }
+      const normalized = series.map((item: SeriesItem) => {
+        const totalSalesNum = typeof item.totalSales === 'number' 
+          ? item.totalSales 
+          : typeof item.totalSales === 'string' 
+          ? parseFloat(item.totalSales) || 0 
+          : 0;
+        return {
+          date: typeof item.date === 'string' 
+            ? item.date.split('T')[0] 
+            : new Date(item.date).toISOString().split('T')[0],
+          totalSales: totalSalesNum,
+          totalOrders: item.totalOrders || 0,
+          averageTicket: item.totalOrders > 0 ? totalSalesNum / item.totalOrders : 0,
+          uniqueCustomers: 0, // Não disponível em sales_daily
+          totalRevenue: totalSalesNum,
+          salesByOrigin: [], // Não disponível em sales_daily
+          ordersByChannel: {
+            delivery: item.qtdDelivery || 0,
+            counter: item.qtdBalcao || 0,
+            hall: 0,
+            ticket: 0,
+          },
+          topProducts: [],
+        };
+      });
 
       setSalesData(normalized);
       
@@ -463,32 +484,32 @@ export function ReportsSection() {
     {
       title: "Vendas",
       value: `R$ ${dashboardData.totalSales.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-      change: null, // Sem dados históricos para calcular mudança
-      changeType: null as const,
+      change: null as string | null, // Sem dados históricos para calcular mudança
+      changeType: null as "positive" | "negative" | null,
       icon: DollarSign,
       isSyncing: dashboardData.isSyncing
     },
     {
       title: "Pedidos",
       value: dashboardData.totalOrders.toString(),
-      change: null,
-      changeType: null as const,
+      change: null as string | null,
+      changeType: null as "positive" | "negative" | null,
       icon: ShoppingCart,
       isSyncing: dashboardData.isSyncing
     },
     {
       title: "Ticket Médio",
       value: `R$ ${dashboardData.averageTicket.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-      change: null,
-      changeType: null as const,
+      change: null as string | null,
+      changeType: null as "positive" | "negative" | null,
       icon: TrendingUp,
       isSyncing: dashboardData.isSyncing
     },
     {
       title: "Clientes Únicos",
       value: dashboardData.uniqueCustomers.toString(),
-      change: null,
-      changeType: null as const,
+      change: null as string | null,
+      changeType: null as "positive" | "negative" | null,
       icon: Users,
       isSyncing: dashboardData.isSyncing
     }
