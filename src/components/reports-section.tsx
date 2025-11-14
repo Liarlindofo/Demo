@@ -150,17 +150,16 @@ export function ReportsSection() {
         ? (saiposApis.find(a => a.id === selectedStore.apiId) || saiposApis[0])
         : saiposApis[0];
 
-      const storeId = targetApi.name; // Usar name como storeId
+      // Usar storeId da API (formato: store_${apiId})
+      const storeId = targetApi.storeId;
 
       // Extrair apenas a data (YYYY-MM-DD) das strings de data
       const startDateOnly = dateStart.split('T')[0];
       const endDateOnly = dateEnd.split('T')[0];
 
-      console.log("📊 [UI] Carregando dados do banco");
-      console.log("📊 [UI] StoreId enviado:", storeId);
-      console.log("📊 [UI] targetApi completo:", { id: targetApi.id, name: targetApi.name, type: targetApi.type });
+      console.log("📊 [UI] Buscando dados:", { storeId, start: startDateOnly, end: endDateOnly });
+      console.log("📊 [UI] targetApi completo:", { id: targetApi.id, name: targetApi.name, storeId: targetApi.storeId, type: targetApi.type });
       console.log("📊 [UI] selectedStore:", selectedStore);
-      console.log("📊 [UI] Período:", startDateOnly, "a", endDateOnly);
 
       // Chamar o novo endpoint /api/dashboard/metrics
       const urlParams = new URLSearchParams({
@@ -349,7 +348,7 @@ export function ReportsSection() {
     if (targetApi && selectedStore) {
       realtimeService.startPolling(async () => {
         try {
-          const storeId = targetApi.name;
+          const storeId = targetApi.storeId;
           
           // Validar período máximo de 15 dias
           const startDate = new Date(dateStart);

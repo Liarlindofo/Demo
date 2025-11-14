@@ -21,6 +21,7 @@ interface Toast {
 interface API {
   id: string;
   name: string;
+  storeId: string; // Formato: store_${id}
   status: "connected" | "disconnected" | "error";
   type: "saipos" | "custom" | "whatsapp";
   apiKey?: string;
@@ -40,6 +41,7 @@ interface DashboardData {
 interface DatabaseAPI {
   id: string;
   name: string;
+  storeId: string; // Formato: store_${id}
   type: string;
   status: string;
   apiKey: string;
@@ -121,6 +123,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const apis: API[] = data.apis.map((api: DatabaseAPI) => ({
           id: api.id,
           name: api.name,
+          storeId: api.storeId, // storeId obrigatório na API
           type: api.type,
           status: api.status,
           apiKey: api.apiKey,

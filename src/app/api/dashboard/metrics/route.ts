@@ -4,10 +4,6 @@ import { db } from "@/lib/db";
 import { stackServerApp } from "@/stack";
 import { syncStackAuthUser } from "@/lib/stack-auth-sync";
 
-function normalizeStoreId(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 export async function GET(req: Request) {
   try {
     const stackUser = await stackServerApp.getUser({ or: "return-null" });
@@ -33,10 +29,29 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "missing params" }, { status: 400 });
     }
 
-    // Normalizar storeId
-    const normalizedStoreId = normalizeStoreId(storeIdRaw);
-    console.log("⚠️ StoreId recebido (raw):", storeIdRaw);
-    console.log("⚠️ StoreId normalizado:", normalizedStoreId);
+    console.log("⚠️ UI storeId:", storeIdRaw);
+    console.log("⚠️ userId:", userId);
+
+    // Validar que o storeId pertence ao usuário
+    const validStoreIds = await db.salesDaily.findMany({
+      select: { storeId: true },
+      where: { userId },
+      distinct: ["storeId"],
+    });
+    
+    const validStoreIdList = validStoreIds.map(v => v.storeId);
+    console.log("⚠️ StoreIds válidos para este usuário:", validStoreIdList);
+
+    if (!validStoreIdList.includes(storeIdRaw)) {
+      return NextResponse.json({ 
+        success: false,
+        error: `StoreId "${storeIdRaw}" não pertence ao usuário.`,
+        available: validStoreIdList
+      }, { status: 403 });
+    }
+
+    // Usar storeId exato (sem normalização, já validado)
+    const targetStoreId = storeIdRaw;
 
     // janela UTC-3 completa
     const startDate = new Date(`${start}T00:00:00-03:00`);
@@ -44,42 +59,10 @@ export async function GET(req: Request) {
 
     console.log("⚠️ Período:", { start, end, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
 
-    // Buscar storeIds reais no banco para comparar
-    const realStoreIds = await db.salesDaily.findMany({
-      where: { userId },
-      select: { storeId: true },
-      distinct: ["storeId"],
-    });
-    const normalizedRealStoreIds = realStoreIds.map(r => normalizeStoreId(r.storeId));
-    console.log("⚠️ StoreIds reais no banco (raw):", realStoreIds.map(r => r.storeId));
-    console.log("⚠️ StoreIds reais no banco (normalizados):", normalizedRealStoreIds);
-
-    // Encontrar o storeId real que corresponde ao normalizado
-    const matchingStoreId = realStoreIds.find(r => normalizeStoreId(r.storeId) === normalizedStoreId);
-    
-    if (!matchingStoreId) {
-      console.error("❌ StoreId não encontrado no banco!");
-      console.error("  - StoreId recebido (raw):", storeIdRaw);
-      console.error("  - StoreId normalizado:", normalizedStoreId);
-      console.error("  - StoreIds disponíveis:", realStoreIds.map(r => r.storeId));
-      return NextResponse.json({ 
-        success: false, 
-        error: `StoreId "${storeIdRaw}" não encontrado no banco. StoreIds disponíveis: ${realStoreIds.map(r => r.storeId).join(", ")}`,
-        debug: {
-          received: storeIdRaw,
-          normalized: normalizedStoreId,
-          available: realStoreIds.map(r => r.storeId),
-        }
-      }, { status: 404 });
-    }
-
-    const actualStoreId = matchingStoreId.storeId;
-    console.log("⚠️ StoreId real encontrado no banco:", actualStoreId);
-
     const where = {
       userId,
       date: { gte: startDate, lte: endDate },
-      storeId: actualStoreId, // Usar o storeId exato do banco
+      storeId: targetStoreId,
     };
 
     console.log("⚠️ Where aplicado:", JSON.stringify(where, null, 2));
@@ -89,7 +72,7 @@ export async function GET(req: Request) {
       where: { userId },
     });
     const countWithStoreId = await db.salesDaily.count({
-      where: { userId, storeId: actualStoreId },
+      where: { userId, storeId: targetStoreId },
     });
     const countWithDateRange = await db.salesDaily.count({
       where: { userId, date: { gte: startDate, lte: endDate } },

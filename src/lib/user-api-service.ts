@@ -13,6 +13,7 @@ export interface UserAPIConfig {
   id: string
   userId: string
   name: string
+  storeId: string // Formato: store_${id}
   type: 'saipos' | 'custom' | 'whatsapp'
   apiKey: string
   baseUrl?: string
@@ -55,6 +56,7 @@ export class UserAPIService {
         ? 'https://data.saipos.io/v1'
         : (data.baseUrl || 'https://data.saipos.io/v1')
 
+      // Criar API primeiro
       const api = await prisma.userAPI.create({
         data: {
           userId: data.userId,
@@ -62,12 +64,22 @@ export class UserAPIService {
           type: data.type,
           apiKey: data.apiKey,
           baseUrl: finalBaseUrl,
-          status: 'disconnected'
+          status: 'disconnected',
+          storeId: `temp_${Date.now()}` // Temporário, será atualizado abaixo
         }
       })
 
-      console.log(`✅ API ${data.name} criada para usuário ${data.userId}`)
-      return api as UserAPIConfig
+      // Gerar storeId único baseado no id da API
+      const storeId = `store_${api.id}`
+      
+      // Atualizar com o storeId real
+      const updatedApi = await prisma.userAPI.update({
+        where: { id: api.id },
+        data: { storeId }
+      })
+
+      console.log(`✅ API ${data.name} criada para usuário ${data.userId} com storeId: ${storeId}`)
+      return updatedApi as UserAPIConfig
     } catch (error) {
       console.error('❌ Erro ao criar API:', error)
       throw new Error('Erro ao criar configuração da API')

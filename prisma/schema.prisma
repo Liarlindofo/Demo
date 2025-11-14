@@ -83,7 +83,7 @@ model UserAPI {
   baseUrl   String?
   status    String   @default("disconnected")
   // Saipos specific integration controls
-  storeId   String?
+  storeId   String   // Formato: store_${id} - gerado automaticamente
   enabled   Boolean  @default(false)
   isSyncing Boolean  @default(false)
   lastTest  DateTime?

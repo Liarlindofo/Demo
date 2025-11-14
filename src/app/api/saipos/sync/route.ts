@@ -78,7 +78,7 @@ async function fetchSalesFromSaipos(
   const limit = 200;
   let hasMoreData = true;
   let consecutiveEmptyPages = 0;
-  const maxConsecutiveEmpty = 20;
+  const maxConsecutiveEmpty = 3; // Parar após 3 páginas vazias consecutivas
   let totalRequests = 0;
   const maxTotalRequests = 100;
   const delayBetweenRequests = 800;
@@ -133,6 +133,7 @@ async function fetchSalesFromSaipos(
     if (pageArray.length === 0 || pageData === null) {
       consecutiveEmptyPages++;
       if (consecutiveEmptyPages >= maxConsecutiveEmpty) {
+        console.log(`🛑 Parando após ${maxConsecutiveEmpty} páginas vazias consecutivas`);
         hasMoreData = false;
         break;
       }
@@ -141,6 +142,7 @@ async function fetchSalesFromSaipos(
       continue;
     }
 
+    // Resetar contador quando encontrar dados
     consecutiveEmptyPages = 0;
     allSales.push(...pageArray);
     totalFetched += pageArray.length;
@@ -206,7 +208,7 @@ export async function POST(request: Request) {
       profileImageUrl: stackUser.profileImageUrl || undefined,
       primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
     });
-    const userId = dbUser.id;
+    // userId será obtido da API abaixo, não do dbUser
 
     const body = (await request.json()) as SyncRequest;
     const { apiId, storeId, startDate, endDate, initialLoad } = body;
@@ -233,7 +235,18 @@ export async function POST(request: Request) {
     }
 
     const apiKey = saiposAPI.apiKey;
-    const targetStoreId = storeId || saiposAPI.name;
+    
+    // Usar sempre o storeId da API (formato: store_${apiId})
+    if (!saiposAPI.storeId) {
+      console.error("❌ StoreId não encontrado na API. A API deve ter um storeId gerado.");
+      return NextResponse.json(
+        { success: false, error: "StoreId não configurado na API" },
+        { status: 400 }
+      );
+    }
+    
+    const targetStoreId = saiposAPI.storeId;
+    const apiUserId = saiposAPI.userId;
 
     if (!apiKey) {
       console.error("❌ API key não encontrada");
@@ -243,13 +256,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!targetStoreId) {
-      console.error("❌ Store ID não encontrado");
-      return NextResponse.json(
-        { success: false, error: "Store ID não encontrado" },
-        { status: 400 }
-      );
-    }
+    console.log("📊 Sincronizando com storeId:", targetStoreId, "userId:", apiUserId);
 
     const cleanToken = apiKey.trim().replace(/^Bearer\s+/i, "");
 
@@ -262,18 +269,18 @@ export async function POST(request: Request) {
     }
 
     // Determinar período de sincronização
-    // Sempre baixar os últimos 15 dias (incluindo o dia da sincronização)
+    // Sempre baixar os últimos 15 dias FINAIS (UTC-3) sem falhar
     const today = new Date();
-    const syncEndDate = endDate || today.toISOString().split("T")[0];
-    const syncStartDate =
-      startDate ||
-      (initialLoad
-        ? new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0]
-        : new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0]); // Sempre baixar últimos 15 dias (14 dias atrás + hoje = 15 dias)
+    // Ajustar para UTC-3 (America/Sao_Paulo)
+    const todayBRT = new Date(today.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const syncEndDate = endDate || todayBRT.toISOString().split("T")[0];
+    
+    // Calcular 15 dias atrás (14 dias + hoje = 15 dias)
+    const syncStartDate = startDate || (() => {
+      const start = new Date(todayBRT);
+      start.setDate(start.getDate() - 14); // 14 dias atrás + hoje = 15 dias
+      return start.toISOString().split("T")[0];
+    })();
 
     console.log(
       `🔄 Iniciando sincronização para storeId="${targetStoreId}", período: ${syncStartDate} a ${syncEndDate}${initialLoad ? " (carregamento inicial)" : ""}`
@@ -330,10 +337,10 @@ export async function POST(request: Request) {
 
                     await tx.salesDaily.upsert({
                       where: {
-                        user_store_date: { userId, storeId: targetStoreId, date },
+                        user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
                       },
                       create: {
-                        userId,
+                        userId: apiUserId,
                         storeId: targetStoreId,
                         date,
                         totalOrders: data.totalOrders,
@@ -396,10 +403,10 @@ export async function POST(request: Request) {
 
                   await db.salesDaily.upsert({
                     where: {
-                      user_store_date: { userId, storeId: targetStoreId, date },
+                      user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
                     },
                     create: {
-                      userId,
+                      userId: apiUserId,
                       storeId: targetStoreId,
                       date,
                       totalOrders: data.totalOrders,
@@ -504,10 +511,10 @@ export async function POST(request: Request) {
 
               await tx.salesDaily.upsert({
                 where: {
-                  user_store_date: { userId, storeId: targetStoreId, date },
+                  user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
                 },
                 create: {
-                  userId,
+                  userId: apiUserId,
                   storeId: targetStoreId,
                   date,
                   totalOrders: data.totalOrders,

@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 export function APIConnectionDialog() {
   const { addToast, loadUserAPIs, testUserAPI } = useApp();
   const [isOpen, setIsOpen] = useState(false);
-  const [name, setName] = useState("Loja 1");
+  const [name, setName] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

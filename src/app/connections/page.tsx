@@ -43,7 +43,7 @@ export default function ConnectionsPage() {
   const [forms, setForms] = useState<LocalAPIForm[]>([]);
   const saiposAPIs = useMemo(() => connectedAPIs.filter(a => a.type === 'saipos'), [connectedAPIs]);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
-  const [popupName, setPopupName] = useState('Loja 1');
+  const [popupName, setPopupName] = useState('');
   const [popupToken, setPopupToken] = useState('');
   const [popupError, setPopupError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
