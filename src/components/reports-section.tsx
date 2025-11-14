@@ -123,7 +123,7 @@ export function ReportsSection() {
     }
   };
 
-  // 🔹 Carregar dados do cache local usando a nova rota /api/dashboard/sales
+  // 🔹 Carregar dados reais do banco usando /api/dashboard/metrics
   const loadSalesData = useCallback(async () => {
     // Validar período antes de carregar
     const startDate = new Date(dateStart);
@@ -138,11 +138,11 @@ export function ReportsSection() {
     
     setIsLoading(true);
     
-    // Timeout de 30 segundos para permitir processamento de dados
+    // Timeout de 30 segundos
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-    }, 30000); // 30 segundos
+    }, 30000);
     
     try {
       setErrorMsg(null);
@@ -156,76 +156,20 @@ export function ReportsSection() {
 
       const storeId = targetApi.name; // Usar name como storeId
 
-      // Validar período máximo de 15 dias
-      const startDateObj = new Date(dateStart);
-      const endDateObj = new Date(dateEnd);
-      const daysDiffCalc = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      
-      if (daysDiffCalc > 15) {
-        throw new Error('Período máximo permitido é de 15 dias');
-      }
-      
-      // Calcular range baseado no período selecionado
-      let range: string;
-      if (daysDiffCalc <= 1) range = '1d';
-      else if (daysDiffCalc <= 7) range = '7d';
-      else range = '15d';
-
-      // Verificar cache local
-      const cacheKey = `${storeId}-${range}-${dateStart}-${dateEnd}`;
-      const cached = dataCacheRef.current.get(cacheKey);
-      const now = Date.now();
-      
-      if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-        console.log("📦 Usando dados do cache local");
-        setSalesData(cached.data);
-        
-        // Atualizar dashboard com dados do cache
-        const totals = cached.data.reduce((acc: { totalSales: number; totalOrders: number; uniqueCustomers: number }, item: SaiposSalesData) => ({
-          totalSales: acc.totalSales + (item.totalSales || 0),
-          totalOrders: acc.totalOrders + (item.totalOrders || 0),
-          uniqueCustomers: acc.uniqueCustomers + (item.uniqueCustomers || 0),
-        }), { totalSales: 0, totalOrders: 0, uniqueCustomers: 0 });
-
-        const averageTicket = totals.totalOrders > 0 
-          ? totals.totalSales / totals.totalOrders 
-          : 0;
-
-        updateDashboardData({
-          totalSales: totals.totalSales,
-          totalOrders: totals.totalOrders,
-          averageTicket: averageTicket,
-          uniqueCustomers: totals.uniqueCustomers,
-        });
-        
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("📊 Carregando dados do cache local - storeId:", storeId, "range:", range, "período:", dateStart, "a", dateEnd);
-
       // Extrair apenas a data (YYYY-MM-DD) das strings de data
       const startDateOnly = dateStart.split('T')[0];
       const endDateOnly = dateEnd.split('T')[0];
 
-      // Quando for apenas 1 dia, enviar a data específica para a API
-      const urlParams = new URLSearchParams({
-        storeId: storeId,
-        range: range,
-      });
-      
-      // Se for apenas 1 dia, enviar a data específica
-      if (range === '1d' && startDateOnly === endDateOnly) {
-        urlParams.append('date', startDateOnly);
-        console.log(`📊 Enviando data específica para API: ${startDateOnly}`);
-      } else {
-        // Para ranges maiores, enviar as datas também para garantir precisão
-        urlParams.append('startDate', startDateOnly);
-        urlParams.append('endDate', endDateOnly);
-        console.log(`📊 Enviando range de datas para API: ${startDateOnly} até ${endDateOnly}`);
-      }
+      console.log("📊 Carregando dados do banco - storeId:", storeId, "período:", startDateOnly, "a", endDateOnly);
 
-      const res = await fetch(`/api/dashboard/sales?${urlParams.toString()}`, {
+      // Chamar o novo endpoint /api/dashboard/metrics
+      const urlParams = new URLSearchParams({
+        start: startDateOnly,
+        end: endDateOnly,
+        storeId: storeId,
+      });
+
+      const res = await fetch(`/api/dashboard/metrics?${urlParams.toString()}`, {
         headers: { 
           'Content-Type': 'application/json'
         },
@@ -236,124 +180,94 @@ export function ReportsSection() {
       clearTimeout(timeoutId);
 
       if (!res.ok) {
-        throw new Error(`Erro ao buscar dados: ${res.status}`);
+        const errorData = await res.json().catch(() => ({ error: `Erro ${res.status}` }));
+        throw new Error(errorData.error || `Erro ao buscar dados: ${res.status}`);
       }
 
       const resp = await res.json();
-      console.log('📦 Dados recebidos do cache:', resp);
+      
+      if (!resp.success) {
+        throw new Error(resp.error || "Erro ao buscar dados");
+      }
 
-      const vendas = Array.isArray(resp?.data) ? resp.data : [];
+      const { cards, series, debug } = resp.data;
 
-      if (vendas.length === 0) {
-        console.warn('⚠️ Nenhuma venda encontrada no cache para o período');
+      // Log debug em desenvolvimento
+      if (process.env.NODE_ENV === 'development' && cards.totalOrders === 0) {
+        console.log('🔍 Debug - where usado:', debug);
+      }
+
+      // Se não houver dados, mostrar mensagem
+      if (series.length === 0) {
+        console.warn('⚠️ Nenhuma venda encontrada no banco para o período');
         console.warn('⚠️ StoreId usado:', storeId);
-        console.warn('⚠️ Período:', dateStart, 'a', dateEnd);
-        console.warn('⚠️ Resposta completa:', resp);
+        console.warn('⚠️ Período:', startDateOnly, 'a', endDateOnly);
         setSalesData([]);
-        updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
-        addToast(`Sem vendas no período selecionado. StoreId: ${storeId}`, 'info');
+        updateDashboardData({ 
+          totalSales: 0, 
+          totalOrders: 0, 
+          averageTicket: 0, 
+          uniqueCustomers: 0 
+        });
+        addToast(`Sem dados no período selecionado. StoreId: ${storeId}`, 'info');
         return;
       }
 
-      // Filtrar apenas vendas do período selecionado (dateStart a dateEnd)
-      // startDateOnly e endDateOnly já foram calculados acima
-      const filteredByPeriod = vendas.filter((item: { date: string }) => {
-        const itemDate = item.date?.split('T')[0] || item.date;
-        return itemDate >= startDateOnly && itemDate <= endDateOnly;
-      });
-
-      // Converter para formato esperado pelo componente
-      interface SalesItem {
-        date: string;
-        totalSales: number;
-        totalOrders: number;
-        averageTicket: number;
-        uniqueCustomers: number;
-        channels?: {
-          salesByOrigin?: Array<{ origin: string; quantity: number; revenue: number }>;
-          ordersByChannel?: { delivery: number; counter: number; hall: number; ticket: number };
-        } | null;
-      }
-      
-      const normalized = filteredByPeriod.map((item: SalesItem) => ({
-        date: item.date,
-        totalSales: item.totalSales,
-        totalOrders: item.totalOrders,
-        averageTicket: item.averageTicket,
-        uniqueCustomers: item.uniqueCustomers,
-        totalRevenue: item.totalSales,
-        salesByOrigin: item.channels?.salesByOrigin || [],
-        ordersByChannel: item.channels?.ordersByChannel || { delivery: 0, counter: 0, hall: 0, ticket: 0 },
+      // Converter série para formato esperado pelo componente
+      const normalized = series.map((item: any) => ({
+        date: typeof item.date === 'string' 
+          ? item.date.split('T')[0] 
+          : new Date(item.date).toISOString().split('T')[0],
+        totalSales: item.totalSales || 0,
+        totalOrders: item.totalOrders || 0,
+        averageTicket: item.totalOrders > 0 ? item.totalSales / item.totalOrders : 0,
+        uniqueCustomers: 0, // Não disponível em sales_daily
+        totalRevenue: item.totalSales || 0,
+        salesByOrigin: [], // Não disponível em sales_daily
+        ordersByChannel: {
+          delivery: item.qtdDelivery || 0,
+          counter: item.qtdBalcao || 0,
+          hall: 0,
+          ticket: 0,
+        },
         topProducts: [],
       }));
 
       setSalesData(normalized);
       
-      // Salvar no cache local
-      dataCacheRef.current.set(cacheKey, { data: normalized, timestamp: Date.now() });
-      // Limitar cache a 10 entradas
-      if (dataCacheRef.current.size > 10) {
-        const firstKey = dataCacheRef.current.keys().next().value;
-        if (firstKey) {
-          dataCacheRef.current.delete(firstKey);
-        }
-      }
-      
-      console.log(`📅 Período selecionado: ${startDateOnly} a ${endDateOnly}`);
-      console.log(`📅 Vendas encontradas no cache: ${vendas.length}`);
-      console.log(`📅 Vendas filtradas pelo período: ${filteredByPeriod.length}`);
-      
-      // Atualizar dashboard com os dados agregados APENAS do período selecionado
-      if (filteredByPeriod.length > 0) {
-        const totals = filteredByPeriod.reduce((acc: { totalSales: number; totalOrders: number; uniqueCustomers: number }, item: SalesItem) => ({
-          totalSales: acc.totalSales + (item.totalSales || 0),
-          totalOrders: acc.totalOrders + (item.totalOrders || 0),
-          uniqueCustomers: acc.uniqueCustomers + (item.uniqueCustomers || 0),
-        }), { totalSales: 0, totalOrders: 0, uniqueCustomers: 0 });
+      // Atualizar dashboard com os dados dos cards (agregados)
+      const averageTicket = cards.totalOrders > 0 
+        ? cards.totalSales / cards.totalOrders 
+        : 0;
 
-        const averageTicket = totals.totalOrders > 0 
-          ? totals.totalSales / totals.totalOrders 
-          : 0;
-
-        updateDashboardData({
-          totalSales: totals.totalSales,
-          totalOrders: totals.totalOrders,
-          averageTicket: averageTicket,
-          uniqueCustomers: totals.uniqueCustomers,
-        });
-      } else {
-        // Usar summary da resposta se não houver dados filtrados
-        if (resp.summary) {
-          updateDashboardData({
-            totalSales: resp.summary.totalSales || 0,
-            totalOrders: resp.summary.totalOrders || 0,
-            averageTicket: resp.summary.averageTicket || 0,
-            uniqueCustomers: resp.summary.uniqueCustomers || 0,
-          });
-        }
-      }
+      updateDashboardData({
+        totalSales: cards.totalSales || 0,
+        totalOrders: cards.totalOrders || 0,
+        averageTicket: averageTicket,
+        uniqueCustomers: 0, // Não disponível em sales_daily
+      });
 
       addToast("Dados carregados!", "success");
-           } catch (error) {
-             clearTimeout(timeoutId);
-             
-             if (error instanceof Error && error.name === 'AbortError') {
-               console.error("=== TIMEOUT: Carregamento demorou mais de 30 segundos ===");
-               setErrorMsg('Carregamento demorou muito. Tente novamente ou verifique se há dados no banco.');
-               addToast('Carregamento demorou muito. Verifique se há dados sincronizados.', 'error');
-             } else {
-               console.error("=== ERRO AO CARREGAR DADOS ===");
-               console.error("Erro completo:", error);
-               console.error("Erro message:", error instanceof Error ? error.message : String(error));
-               addToast("Erro ao carregar dados", "error");
-               setErrorMsg(error instanceof Error ? error.message : "Erro ao carregar dados");
-             }
-             
-             setSalesData([]);
-             updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
-           } finally {
-             setIsLoading(false);
-           }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error("=== TIMEOUT: Carregamento demorou mais de 30 segundos ===");
+        setErrorMsg('Carregamento demorou muito. Tente novamente ou verifique se há dados no banco.');
+        addToast('Carregamento demorou muito. Verifique se há dados sincronizados.', 'error');
+      } else {
+        console.error("=== ERRO AO CARREGAR DADOS ===");
+        console.error("Erro completo:", error);
+        console.error("Erro message:", error instanceof Error ? error.message : String(error));
+        addToast("Erro ao carregar dados", "error");
+        setErrorMsg(error instanceof Error ? error.message : "Erro ao carregar dados");
+      }
+      
+      setSalesData([]);
+      updateDashboardData({ totalSales: 0, totalOrders: 0, averageTicket: 0, uniqueCustomers: 0 });
+    } finally {
+      setIsLoading(false);
+    }
   }, [dateStart, dateEnd, selectedStore, addToast, connectedAPIs, updateDashboardData]);
 
   // 🔹 Carregar dados diários (DESABILITADO - não usado mais, dados vêm do cache)
@@ -425,13 +339,17 @@ export function ReportsSection() {
             } as RealtimeUpdate;
           }
           
-          // Calcular range baseado no período selecionado
-          let range: string;
-          if (daysDiff <= 1) range = '1d';
-          else if (daysDiff <= 7) range = '7d';
-          else range = '15d';
+          // Extrair datas no formato YYYY-MM-DD
+          const startDateOnly = dateStart.split('T')[0];
+          const endDateOnly = dateEnd.split('T')[0];
 
-          const res = await fetch(`/api/dashboard/sales?storeId=${encodeURIComponent(storeId)}&range=${range}`, {
+          const urlParams = new URLSearchParams({
+            start: startDateOnly,
+            end: endDateOnly,
+            storeId: storeId,
+          });
+
+          const res = await fetch(`/api/dashboard/metrics?${urlParams.toString()}`, {
             headers: { 'Content-Type': 'application/json' },
             cache: 'no-store',
           });
@@ -464,7 +382,7 @@ export function ReportsSection() {
           const resp = await res.json();
           
           // Verificar se há erro na resposta
-          if (resp.error) {
+          if (!resp.success || resp.error) {
             console.error('Erro na resposta da API:', resp.error);
             // Manter dados atuais em caso de erro
             return {
@@ -478,9 +396,10 @@ export function ReportsSection() {
               timestamp: new Date().toISOString(),
             } as RealtimeUpdate;
           }
-          const vendas = Array.isArray(resp?.data) ? resp.data : [];
+
+          const { cards } = resp.data;
           
-          if (vendas.length === 0) {
+          if (!cards || cards.totalOrders === 0) {
             // Não altere os números atuais se não houver dados
             return {
               storeId: selectedStore.id,
@@ -494,37 +413,16 @@ export function ReportsSection() {
             } as RealtimeUpdate;
           }
 
-          // Filtrar pelo período selecionado
-          const startDateOnly = dateStart.split('T')[0];
-          const endDateOnly = dateEnd.split('T')[0];
-          const filteredByPeriod = vendas.filter((item: { date: string }) => {
-            const itemDate = item.date?.split('T')[0] || item.date;
-            return itemDate >= startDateOnly && itemDate <= endDateOnly;
-          });
-
-          interface PollingSalesItem {
-            date: string;
-            totalSales: number;
-            totalOrders: number;
-            uniqueCustomers: number;
-          }
-          
-          const totals = filteredByPeriod.reduce((acc: { totalSales: number; totalOrders: number; uniqueCustomers: number }, item: PollingSalesItem) => ({
-            totalSales: acc.totalSales + (item.totalSales || 0),
-            totalOrders: acc.totalOrders + (item.totalOrders || 0),
-            uniqueCustomers: acc.uniqueCustomers + (item.uniqueCustomers || 0),
-          }), { totalSales: 0, totalOrders: 0, uniqueCustomers: 0 });
-          
-          const averageTicket = totals.totalOrders > 0 ? totals.totalSales / totals.totalOrders : 0;
+          const averageTicket = cards.totalOrders > 0 ? cards.totalSales / cards.totalOrders : 0;
 
           return {
             storeId: selectedStore.id,
             type: 'sales',
             data: { 
-              totalSales: totals.totalSales, 
-              totalOrders: totals.totalOrders, 
+              totalSales: cards.totalSales || 0, 
+              totalOrders: cards.totalOrders || 0, 
               averageTicket,
-              uniqueCustomers: totals.uniqueCustomers,
+              uniqueCustomers: 0, // Não disponível em sales_daily
             },
             timestamp: new Date().toISOString(),
           } as RealtimeUpdate;
@@ -563,34 +461,34 @@ export function ReportsSection() {
 
   const stats = [
     {
-      title: "Vendas Hoje",
+      title: "Vendas",
       value: `R$ ${dashboardData.totalSales.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-      change: "+12.5%",
-      changeType: "positive" as const,
+      change: null, // Sem dados históricos para calcular mudança
+      changeType: null as const,
       icon: DollarSign,
       isSyncing: dashboardData.isSyncing
     },
     {
-      title: "Pedidos Hoje",
+      title: "Pedidos",
       value: dashboardData.totalOrders.toString(),
-      change: "+8.2%",
-      changeType: "positive" as const,
+      change: null,
+      changeType: null as const,
       icon: ShoppingCart,
       isSyncing: dashboardData.isSyncing
     },
     {
       title: "Ticket Médio",
       value: `R$ ${dashboardData.averageTicket.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-      change: "-2.1%",
-      changeType: "negative" as const,
+      change: null,
+      changeType: null as const,
       icon: TrendingUp,
       isSyncing: dashboardData.isSyncing
     },
     {
       title: "Clientes Únicos",
       value: dashboardData.uniqueCustomers.toString(),
-      change: "+15.3%",
-      changeType: "positive" as const,
+      change: null,
+      changeType: null as const,
       icon: Users,
       isSyncing: dashboardData.isSyncing
     }
@@ -841,13 +739,15 @@ export function ReportsSection() {
                       <RefreshCw className="h-4 w-4 text-[#001F05] animate-spin" />
                     )}
                   </div>
-                  <span
-                    className={`text-sm font-medium ${
-                      stat.changeType === "positive" ? "text-green-400" : "text-red-400"
-                    }`}
-                  >
-                    {stat.change}
-                  </span>
+                  {stat.change && (
+                    <span
+                      className={`text-sm font-medium ${
+                        stat.changeType === "positive" ? "text-green-400" : "text-red-400"
+                      }`}
+                    >
+                      {stat.change}
+                    </span>
+                  )}
                 </div>
               </div>
             </CardContent>
