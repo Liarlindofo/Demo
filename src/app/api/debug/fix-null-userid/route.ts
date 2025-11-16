@@ -17,27 +17,24 @@ export async function POST() {
 
     let totalFixed = 0;
 
-    // 2. Para cada API, corrigir registros com userId null ou vazio
+    // 2. Para cada API, corrigir registros com userId null ou vazio usando SQL raw
     for (const api of apis) {
       if (!api.userId || !api.storeId) {
         console.warn(`⚠️ API ${api.id} sem userId ou storeId, pulando...`);
         continue;
       }
 
-      const result = await db.salesDaily.updateMany({
-        where: {
-          storeId: api.storeId,
-          OR: [
-            { userId: null },
-            { userId: "" },
-          ],
-        },
-        data: { userId: api.userId },
-      });
+      // Usar SQL raw para atualizar registros com userId null ou vazio
+      const result = await db.$executeRaw`
+        UPDATE sales_daily 
+        SET "userId" = ${api.userId}
+        WHERE "storeId" = ${api.storeId} 
+          AND ("userId" IS NULL OR "userId" = '')
+      `;
 
-      if (result.count > 0) {
-        console.log(`✅ API ${api.id} (storeId: ${api.storeId}): ${result.count} registros corrigidos`);
-        totalFixed += result.count;
+      if (result > 0) {
+        console.log(`✅ API ${api.id} (storeId: ${api.storeId}): ${result} registros corrigidos`);
+        totalFixed += result;
       }
     }
 

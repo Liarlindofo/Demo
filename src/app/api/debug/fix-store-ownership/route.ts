@@ -50,16 +50,7 @@ export async function POST() {
         continue;
       }
 
-      // Usar SQL raw para atualizar registros com userId null ou incorreto
-      // Como userId agora é obrigatório no schema, não podemos usar { userId: null } diretamente
-      const updateResult = await db.$executeRaw`
-        UPDATE sales_daily
-        SET "userId" = ${api.userId}
-        WHERE "storeId" = ${api.storeId}
-          AND ("userId" IS NULL OR "userId" = '' OR "userId" != ${api.userId})
-      `;
-      
-      // Para obter o count, fazer uma query separada
+      // Primeiro, contar quantos registros precisam ser corrigidos
       const countResult = await db.$queryRaw<Array<{ count: bigint }>>`
         SELECT COUNT(*) as count
         FROM sales_daily
@@ -68,6 +59,17 @@ export async function POST() {
       `;
       
       const count = Number(countResult[0]?.count || 0);
+      
+      if (count > 0) {
+        // Usar SQL raw para atualizar registros com userId null ou incorreto
+        // Como userId agora é obrigatório no schema, não podemos usar { userId: null } diretamente
+        await db.$executeRaw`
+          UPDATE sales_daily
+          SET "userId" = ${api.userId}
+          WHERE "storeId" = ${api.storeId}
+            AND ("userId" IS NULL OR "userId" = '' OR "userId" != ${api.userId})
+        `;
+      }
 
       if (count > 0) {
         totalFixed += count;
