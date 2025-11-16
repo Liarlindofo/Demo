@@ -1,10 +1,27 @@
 export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { stackServerApp } from "@/stack";
+import { syncStackAuthUser } from "@/lib/stack-auth-sync";
 
 // GET /api/debug/db-sales - Debug: Verificar dados no banco
 export async function GET(request: Request) {
   try {
+    // Autenticação obrigatória
+    const stackUser = await stackServerApp.getUser({ or: "return-null" });
+    if (!stackUser) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+
+    const dbUser = await syncStackAuthUser({
+      id: stackUser.id,
+      primaryEmail: stackUser.primaryEmail || undefined,
+      displayName: stackUser.displayName || undefined,
+      profileImageUrl: stackUser.profileImageUrl || undefined,
+      primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
+    });
+    const userId = dbUser.id;
+
     const url = new URL(request.url);
     const storeId = url.searchParams.get("storeId");
 
@@ -17,14 +34,14 @@ export async function GET(request: Request) {
 
     console.log(`🔍 [DEBUG] Verificando dados no banco para storeId: "${storeId}"`);
 
-    // Contar total de registros
+    // Contar total de registros (apenas do usuário autenticado)
     const totalCount = await db.salesDaily.count({
-      where: { storeId },
+      where: { userId, storeId },
     });
 
-    // Buscar todos os registros (sem filtro de data)
+    // Buscar todos os registros (sem filtro de data, apenas do usuário autenticado)
     const allRecords = await db.salesDaily.findMany({
-      where: { storeId },
+      where: { userId, storeId },
       select: {
         id: true,
         storeId: true,
@@ -40,16 +57,16 @@ export async function GET(request: Request) {
       take: 50, // Limitar a 50 para não sobrecarregar
     });
 
-    // Buscar registros mais recentes
+    // Buscar registros mais recentes (apenas do usuário autenticado)
     const recentRecords = await db.salesDaily.findMany({
-      where: { storeId },
+      where: { userId, storeId },
       orderBy: { date: "desc" },
       take: 10,
     });
 
-    // Buscar registros mais antigos
+    // Buscar registros mais antigos (apenas do usuário autenticado)
     const oldestRecords = await db.salesDaily.findMany({
-      where: { storeId },
+      where: { userId, storeId },
       orderBy: { date: "asc" },
       take: 10,
     });
@@ -62,6 +79,7 @@ export async function GET(request: Request) {
 
     const recordsInLast15Days = await db.salesDaily.count({
       where: {
+        userId,
         storeId,
         date: {
           gte: fifteenDaysAgo,

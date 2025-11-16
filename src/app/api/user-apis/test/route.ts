@@ -45,9 +45,20 @@ export async function POST(request: NextRequest) {
     if (api.status === 'connected' && api.type === 'saipos') {
       // Verificar se já existem dados no cache para esta loja
       const { db } = await import('@/lib/db')
-      const storeId = api.name
+      const storeId = api.storeId
+      
+      // Obter userId do usuário autenticado
+      const dbUser = await syncStackAuthUser({
+        id: stackUser.id,
+        primaryEmail: stackUser.primaryEmail || undefined,
+        displayName: stackUser.displayName || undefined,
+        profileImageUrl: stackUser.profileImageUrl || undefined,
+        primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
+      })
+      const userId = dbUser.id
+      
       const existingData = await db.salesDaily.findFirst({
-        where: { storeId },
+        where: { userId, storeId },
       })
       
       // Se não houver dados, fazer carregamento inicial em background (não bloquear resposta)

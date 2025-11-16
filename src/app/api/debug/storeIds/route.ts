@@ -21,8 +21,19 @@ export async function GET() {
       primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
     });
 
-    // Retornar os 20 últimos registros de salesDaily para inspeção
+    // Obter userId do usuário autenticado
+    const dbUser = await syncStackAuthUser({
+      id: stackUser.id,
+      primaryEmail: stackUser.primaryEmail || undefined,
+      displayName: stackUser.displayName || undefined,
+      profileImageUrl: stackUser.profileImageUrl || undefined,
+      primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
+    });
+    const userId = dbUser.id;
+
+    // Retornar os 20 últimos registros de salesDaily para inspeção (apenas do usuário autenticado)
     const rows = await db.salesDaily.findMany({
+      where: { userId },
       select: {
         userId: true,
         storeId: true,

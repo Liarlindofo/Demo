@@ -1,16 +1,34 @@
 ﻿export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { stackServerApp } from "@/stack";
+import { syncStackAuthUser } from "@/lib/stack-auth-sync";
 
 // GET /api/debug/sales - Debug: Verificar dados no banco
 export async function GET(request: Request) {
   try {
+    // Autenticação obrigatória
+    const stackUser = await stackServerApp.getUser({ or: "return-null" });
+    if (!stackUser) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+
+    const dbUser = await syncStackAuthUser({
+      id: stackUser.id,
+      primaryEmail: stackUser.primaryEmail || undefined,
+      displayName: stackUser.displayName || undefined,
+      profileImageUrl: stackUser.profileImageUrl || undefined,
+      primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
+    });
+    const userId = dbUser.id;
+
     const url = new URL(request.url);
     const storeId = url.searchParams.get("storeId");
 
     if (!storeId) {
-      // Listar todos os storeIds únicos
+      // Listar todos os storeIds únicos (apenas do usuário autenticado)
       const allStores = await db.salesDaily.findMany({
+        where: { userId },
         select: { storeId: true },
         distinct: ["storeId"],
       });
@@ -24,21 +42,21 @@ export async function GET(request: Request) {
       });
     }
 
-    // Contar total de registros
+    // Contar total de registros (apenas do usuário autenticado)
     const totalRecords = await db.salesDaily.count({
-      where: { storeId },
+      where: { userId, storeId },
     });
 
-    // Buscar todos os registros
+    // Buscar todos os registros (apenas do usuário autenticado)
     const allRecords = await db.salesDaily.findMany({
-      where: { storeId },
+      where: { userId, storeId },
       orderBy: { date: "desc" },
       take: 50,
     });
 
-    // Buscar registros mais recentes
+    // Buscar registros mais recentes (apenas do usuário autenticado)
     const recentRecords = await db.salesDaily.findMany({
-      where: { storeId },
+      where: { userId, storeId },
       orderBy: { date: "desc" },
       take: 10,
     });

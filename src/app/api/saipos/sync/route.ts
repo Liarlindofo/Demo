@@ -248,6 +248,15 @@ export async function POST(request: Request) {
     const targetStoreId = saiposAPI.storeId;
     const apiUserId = saiposAPI.userId;
 
+    // Proteção: garantir que a API tem userId antes de continuar
+    if (!apiUserId) {
+      console.error("❌ API sem userId associado. Não é possível sincronizar sem userId.");
+      return NextResponse.json(
+        { success: false, error: "API sem userId associado" },
+        { status: 400 }
+      );
+    }
+
     if (!apiKey) {
       console.error("❌ API key não encontrada");
       return NextResponse.json(
@@ -340,7 +349,7 @@ export async function POST(request: Request) {
                         user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
                       },
                       create: {
-                        userId: apiUserId,
+                        userId: apiUserId, // Sempre garantir userId no create
                         storeId: targetStoreId,
                         date,
                         totalOrders: data.totalOrders,
@@ -360,7 +369,7 @@ export async function POST(request: Request) {
                         totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                       },
                       update: {
-                        userId: apiUserId, // Garantir que userId fica setado
+                        userId: apiUserId, // Garantir que userId fica setado no update também
                         totalOrders: data.totalOrders,
                         canceledOrders: data.canceledOrders,
                         totalSales: new Prisma.Decimal(data.totalSales),
@@ -407,7 +416,7 @@ export async function POST(request: Request) {
                       user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
                     },
                     create: {
-                      userId: apiUserId,
+                      userId: apiUserId, // Sempre garantir userId no create
                       storeId: targetStoreId,
                       date,
                       totalOrders: data.totalOrders,
@@ -427,6 +436,7 @@ export async function POST(request: Request) {
                       totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                     },
                     update: {
+                      userId: apiUserId, // Garantir que userId fica setado no update também
                       totalOrders: data.totalOrders,
                       canceledOrders: data.canceledOrders,
                       totalSales: new Prisma.Decimal(data.totalSales),
@@ -515,7 +525,7 @@ export async function POST(request: Request) {
                   user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
                 },
                 create: {
-                  userId: apiUserId,
+                  userId: apiUserId, // Sempre garantir userId no create
                   storeId: targetStoreId,
                   date,
                   totalOrders: data.totalOrders,
@@ -535,6 +545,7 @@ export async function POST(request: Request) {
                   totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                 },
                 update: {
+                  userId: apiUserId, // Garantir que userId fica setado no update também
                   totalOrders: data.totalOrders,
                   canceledOrders: data.canceledOrders,
                   totalSales: new Prisma.Decimal(data.totalSales),
@@ -582,7 +593,7 @@ export async function POST(request: Request) {
                   user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
                 },
                 create: {
-                  userId: apiUserId,
+                  userId: apiUserId, // Sempre garantir userId no create
                   storeId: targetStoreId,
                   date,
                   totalOrders: data.totalOrders,
@@ -602,6 +613,7 @@ export async function POST(request: Request) {
                   totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
                 },
                 update: {
+                  userId: apiUserId, // Garantir que userId fica setado no update também
                   totalOrders: data.totalOrders,
                   canceledOrders: data.canceledOrders,
                   totalSales: new Prisma.Decimal(data.totalSales),
