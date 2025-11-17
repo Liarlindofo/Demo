@@ -1,38 +1,43 @@
 export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { Prisma } from "@prisma/client";
 
-// GET /api/debug/check-sales - Verificar se ainda existem registros com userId null
+// GET /api/debug/check-sales - Verificar registros em sales_daily
 export async function GET() {
   try {
     // Buscar os 20 registros mais recentes para verificação
     const rows = await db.salesDaily.findMany({
       take: 20,
       select: {
-        userId: true,
+        id: true,
+        apiId: true,
         storeId: true,
         date: true,
         totalOrders: true,
+        totalSales: true,
       },
       orderBy: { date: "desc" },
     });
 
-    // Contar quantos têm userId null usando SQL raw (já que o schema não permite null)
-    const nullCountResult = await db.$queryRaw<Array<{ count: bigint }>>(
-      Prisma.sql`SELECT COUNT(*) as count FROM sales_daily WHERE "userId" IS NULL OR "userId" = ''`
-    );
+    // Contar quantos têm apiId null usando SQL raw
+    const nullCountResult = await db.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*) as count FROM sales_daily WHERE "apiId" IS NULL OR "apiId" = ''
+    `;
     const nullCount = Number(nullCountResult[0]?.count || 0);
 
-    // Verificar nos registros retornados se algum tem userId vazio/null
-    const hasNullInRecent = rows.some(row => !row.userId || row.userId === "");
+    // Verificar nos registros retornados se algum tem apiId vazio/null
+    const hasNullInRecent = rows.some(row => !row.apiId || row.apiId === "");
+
+    // Contar total de registros
+    const totalCount = await db.salesDaily.count();
 
     return NextResponse.json({
       success: true,
       recentRows: rows,
-      nullUserIdCount: nullCount,
+      nullApiIdCount: nullCount,
       hasNullValues: nullCount > 0,
       hasNullInRecentRows: hasNullInRecent,
+      totalRecords: totalCount,
     });
   } catch (error) {
     console.error("❌ Erro ao verificar registros:", error);
@@ -45,4 +50,3 @@ export async function GET() {
     );
   }
 }
-

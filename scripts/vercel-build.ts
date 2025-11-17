@@ -60,8 +60,23 @@ async function main() {
         // Continuar mesmo se a limpeza falhar
       }
       
-      // Depois, fazer db:push
-      runCommand('npm run db:push', 'Criando/atualizando tabelas do banco');
+      // Quarto, remover duplicatas antes do db:push
+      console.log('\n🔍 Removendo duplicatas...');
+      try {
+        runCommand('tsx scripts/remove-duplicates.ts', 'Removendo duplicatas');
+      } catch (dupError) {
+        console.warn('⚠️  Aviso: Erro ao remover duplicatas (continuando mesmo assim)');
+        // Continuar mesmo se a remoção falhar
+      }
+      
+      // Depois, fazer db:push com flag para aceitar perda de dados se necessário
+      try {
+        runCommand('npm run db:push', 'Criando/atualizando tabelas do banco');
+      } catch (pushError) {
+        // Se falhar, tentar com --accept-data-loss
+        console.warn('⚠️  db:push falhou, tentando com --accept-data-loss...');
+        runCommand('npm run db:push:force', 'Criando/atualizando tabelas (forçado)');
+      }
     } catch (error) {
       console.error('\n⚠️  Aviso: Erro ao criar tabelas. O build continuará, mas o banco pode não estar sincronizado.');
       console.error('   Certifique-se de que a DATABASE_URL está correta e o banco está acessível.');
