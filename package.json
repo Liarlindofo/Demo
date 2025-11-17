@@ -14,7 +14,8 @@
                     "db:migrate":  "prisma migrate dev",
                     "vercel-build":  "tsx scripts/vercel-build.ts",
                     "db:deploy":  "prisma migrate deploy",
-                    "db:check":  "tsx scripts/check-prisma.ts"
+                    "db:check":  "tsx scripts/check-prisma.ts",
+                    "db:fix-aplid":  "tsx scripts/fix-aplid-column.ts"
                 },
     "dependencies":  {
                          "@hookform/resolvers":  "^5.2.2",
