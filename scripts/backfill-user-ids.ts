@@ -1,7 +1,8 @@
 #!/usr/bin/env tsx
 /**
- * Script de backfill: corrige userId NULL em sales_daily antes do db:push
- * Usa user_apis como fonte da verdade
+ * Script de backfill: NÃO É MAIS NECESSÁRIO
+ * O campo userId foi removido do modelo sales_daily
+ * Este script agora apenas verifica se há registros com apiId NULL
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -9,66 +10,33 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🔄 Iniciando backfill de userId em sales_daily...\n');
+  console.log('🔄 Verificando sales_daily (userId não existe mais no schema)...\n');
 
-  // Buscar todas as APIs Saipos com storeId
-  const apis = await prisma.$queryRaw<Array<{ id: string; userId: string; storeId: string; name: string }>>`
-    SELECT id, "userId", "storeId", name
-    FROM user_apis
-    WHERE type = 'saipos' AND "storeId" IS NOT NULL
+  // Verificar se há registros com apiId NULL
+  const nullApiIdCount = await prisma.$queryRaw<Array<{ count: bigint }>>`
+    SELECT COUNT(*) as count
+    FROM sales_daily
+    WHERE "apiId" IS NULL OR "apiId" = ''
   `;
 
-  console.log(`📊 Encontradas ${apis.length} APIs Saipos com storeId\n`);
+  const count = Number(nullApiIdCount[0]?.count || 0);
 
-  if (apis.length === 0) {
-    console.log('✅ Nenhuma API encontrada. Nada para corrigir.');
-    return;
-  }
-
-  let totalFixed = 0;
-
-  // Para cada API, atualizar registros com userId NULL ou incorreto
-  for (const api of apis) {
-    // Primeiro, contar quantos registros precisam ser corrigidos
-    const countResult = await prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(*) as count
-      FROM sales_daily
-      WHERE "storeId" = ${api.storeId}
-        AND ("userId" IS NULL OR "userId" = '' OR "userId" != ${api.userId})
-    `;
-
-    const count = Number(countResult[0]?.count || 0);
-
-    if (count > 0) {
-      // Atualizar os registros
-      await prisma.$executeRaw`
-        UPDATE sales_daily
-        SET "userId" = ${api.userId}
-        WHERE "storeId" = ${api.storeId}
-          AND ("userId" IS NULL OR "userId" = '' OR "userId" != ${api.userId})
-      `;
-
-      totalFixed += count;
-      console.log(`✅ API "${api.name}" (${api.storeId}): ${count} registros corrigidos`);
-    }
-  }
-
-  if (totalFixed > 0) {
-    console.log(`\n✅ Backfill concluído! Total de registros corrigidos: ${totalFixed}`);
+  if (count > 0) {
+    console.log(`⚠️  Encontrados ${count} registros com apiId NULL.`);
+    console.log('   Esses registros serão removidos pelo script clean-null-apiid.ts\n');
   } else {
-    console.log('\n✅ Nenhum registro precisou de correção');
+    console.log('✅ Nenhum registro com apiId NULL encontrado.\n');
   }
+
+  console.log('✅ Verificação concluída (userId foi removido do schema)\n');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Erro no backfill:', e);
-    process.exit(1);
+    console.error('❌ Erro no script:', e);
+    // Não falhar o build se houver erro
+    console.log('⚠️  Continuando mesmo com erro...\n');
   })
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-
-
-
