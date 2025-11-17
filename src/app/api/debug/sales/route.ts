@@ -26,37 +26,53 @@ export async function GET(request: Request) {
     const storeId = url.searchParams.get("storeId");
 
     if (!storeId) {
-      // Listar todos os storeIds únicos (apenas do usuário autenticado)
-      const allStores = await db.salesDaily.findMany({
-        where: { userId },
-        select: { storeId: true },
-        distinct: ["storeId"],
+      // Listar todas as APIs do usuário para obter os storeIds
+      const apis = await db.userAPI.findMany({
+        where: { userId, type: "saipos" },
+        select: { storeId: true, name: true },
       });
 
-      const storeIds = allStores.map(s => s.storeId);
+      const storeIds = apis.map(a => a.storeId).filter(Boolean);
 
       return NextResponse.json({
         message: "storeId não fornecido. StoreIds disponíveis:",
         storeIds,
         totalStores: storeIds.length,
+        apis: apis.map(a => ({ storeId: a.storeId, name: a.name })),
       });
     }
 
-    // Contar total de registros (apenas do usuário autenticado)
-    const totalRecords = await db.salesDaily.count({
-      where: { userId, storeId },
+    // Buscar a API pelo storeId e userId para obter o apiId
+    const api = await db.userAPI.findFirst({
+      where: {
+        storeId: storeId,
+        userId: userId,
+        type: "saipos",
+      },
     });
 
-    // Buscar todos os registros (apenas do usuário autenticado)
+    if (!api) {
+      return NextResponse.json(
+        { error: "API não encontrada para este storeId" },
+        { status: 404 }
+      );
+    }
+
+    // Contar total de registros usando apiId
+    const totalRecords = await db.salesDaily.count({
+      where: { apiId: api.id, storeId },
+    });
+
+    // Buscar todos os registros usando apiId
     const allRecords = await db.salesDaily.findMany({
-      where: { userId, storeId },
+      where: { apiId: api.id, storeId },
       orderBy: { date: "desc" },
       take: 50,
     });
 
-    // Buscar registros mais recentes (apenas do usuário autenticado)
+    // Buscar registros mais recentes
     const recentRecords = await db.salesDaily.findMany({
-      where: { userId, storeId },
+      where: { apiId: api.id, storeId },
       orderBy: { date: "desc" },
       take: 10,
     });
@@ -76,24 +92,21 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       storeId,
+      apiId: api.id,
       stats,
       recentRecords: recentRecords.map(r => ({
         date: r.date,
-        totalSales: r.totalSales,
+        totalSales: r.totalSales ? Number(r.totalSales) : 0,
         totalOrders: r.totalOrders,
-        averageTicketDelivery: r.averageTicketDelivery,
-        averageTicketBalcao: r.averageTicketBalcao,
       })),
       allRecords: allRecords.map(r => ({
         date: r.date,
-        totalSales: r.totalSales,
+        totalSales: r.totalSales ? Number(r.totalSales) : 0,
         totalOrders: r.totalOrders,
-        averageTicketDelivery: r.averageTicketDelivery,
-        averageTicketBalcao: r.averageTicketBalcao,
       })),
     });
   } catch (error) {
-    console.error(" Erro ao buscar dados de debug:", error);
+    console.error("❌ Erro ao buscar dados de debug:", error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : String(error),

@@ -32,41 +32,56 @@ export async function GET(request: Request) {
       );
     }
 
-    console.log(`🔍 [DEBUG] Verificando dados no banco para storeId: "${storeId}"`);
-
-    // Contar total de registros (apenas do usuário autenticado)
-    const totalCount = await db.salesDaily.count({
-      where: { userId, storeId },
+    // Buscar a API pelo storeId e userId para obter o apiId
+    const api = await db.userAPI.findFirst({
+      where: {
+        storeId: storeId,
+        userId: userId,
+        type: "saipos",
+      },
     });
 
-    // Buscar todos os registros (sem filtro de data, apenas do usuário autenticado)
+    if (!api) {
+      return NextResponse.json(
+        { error: "API não encontrada para este storeId" },
+        { status: 404 }
+      );
+    }
+
+    console.log(`🔍 [DEBUG] Verificando dados no banco para storeId: "${storeId}", apiId: "${api.id}"`);
+
+    // Contar total de registros usando apiId
+    const totalCount = await db.salesDaily.count({
+      where: { apiId: api.id, storeId },
+    });
+
+    // Buscar todos os registros usando apiId
     const allRecords = await db.salesDaily.findMany({
-      where: { userId, storeId },
+      where: { apiId: api.id, storeId },
       select: {
         id: true,
+        apiId: true,
         storeId: true,
         date: true,
         totalSales: true,
         totalOrders: true,
-        averageTicketDelivery: true,
-        averageTicketBalcao: true,
+        channels: true,
         createdAt: true,
-        updatedAt: true,
       },
       orderBy: { date: "desc" },
       take: 50, // Limitar a 50 para não sobrecarregar
     });
 
-    // Buscar registros mais recentes (apenas do usuário autenticado)
+    // Buscar registros mais recentes
     const recentRecords = await db.salesDaily.findMany({
-      where: { userId, storeId },
+      where: { apiId: api.id, storeId },
       orderBy: { date: "desc" },
       take: 10,
     });
 
-    // Buscar registros mais antigos (apenas do usuário autenticado)
+    // Buscar registros mais antigos
     const oldestRecords = await db.salesDaily.findMany({
-      where: { userId, storeId },
+      where: { apiId: api.id, storeId },
       orderBy: { date: "asc" },
       take: 10,
     });
@@ -79,7 +94,7 @@ export async function GET(request: Request) {
 
     const recordsInLast15Days = await db.salesDaily.count({
       where: {
-        userId,
+        apiId: api.id,
         storeId,
         date: {
           gte: fifteenDaysAgo,
@@ -90,27 +105,27 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       storeId,
+      apiId: api.id,
       totalRecords: totalCount,
       recordsInLast15Days,
       allRecords: allRecords.map(r => ({
         id: r.id,
+        apiId: r.apiId,
         storeId: r.storeId,
         date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date,
-        totalSales: r.totalSales,
+        totalSales: r.totalSales ? Number(r.totalSales) : 0,
         totalOrders: r.totalOrders,
-        averageTicketDelivery: r.averageTicketDelivery,
-        averageTicketBalcao: r.averageTicketBalcao,
+        channels: r.channels,
         createdAt: r.createdAt,
-        updatedAt: r.updatedAt,
       })),
       recentRecords: recentRecords.map(r => ({
         date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date,
-        totalSales: r.totalSales,
+        totalSales: r.totalSales ? Number(r.totalSales) : 0,
         totalOrders: r.totalOrders,
       })),
       oldestRecords: oldestRecords.map(r => ({
         date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date,
-        totalSales: r.totalSales,
+        totalSales: r.totalSales ? Number(r.totalSales) : 0,
         totalOrders: r.totalOrders,
       })),
       dateRange: {
@@ -129,4 +144,3 @@ export async function GET(request: Request) {
     );
   }
 }
-
