@@ -1,42 +1,54 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { computeBRTWindow, syncSaiposForApi } from '@/lib/saipos/sync'
+import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = 'nodejs'
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}))
-    const apiId = String(body.apiId ?? '').trim()
-    const overrideStoreId = body.storeId ? String(body.storeId) : undefined
-    const days = Number(body.days ?? 15)
+    const body = await req.json().catch(() => ({}));
+    const apiId = String(body.apiId ?? "").trim();
+    const days = Number(body.days ?? 15);
+    // storeId é ignorado aqui porque a rota /api/saipos/sync usa o storeId da própria API
 
     if (!apiId) {
-      return NextResponse.json({ success: false, message: 'apiId é obrigatório' }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: "apiId é obrigatório" },
+        { status: 400 }
+      );
     }
-    const { start, end } = computeBRTWindow(Number.isFinite(days) && days > 0 ? days : 15)
 
-    const result = await syncSaiposForApi({
-      apiId,
-      storeId: overrideStoreId,
-      start,
-      end,
-    })
+    // Descobrir baseUrl atual a partir da requisição
+    const origin =
+      req.nextUrl?.origin ||
+      (process.env.NODE_ENV === "production"
+        ? "https://platefull.com.br"
+        : "http://localhost:3000");
 
-    // Retornar 200 mesmo em caso de erro, mas com success: false
-    // O frontend pode tratar baseado no campo success
-    // 409 apenas para conflito de lock
-    const status = result.success 
-      ? 200 
-      : result.message?.includes('lock') || result.message?.includes('em andamento')
-        ? 409
-        : 200
-    
-    return NextResponse.json(result, { status })
+    const res = await fetch(`${origin}/api/saipos/sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        apiId,
+        days,
+      }),
+    });
+
+    const json = await res.json().catch(() => ({
+      success: false,
+      error: `Erro ao parsear resposta da sincronização (status ${res.status})`,
+    }));
+
+    return NextResponse.json(json, { status: res.status });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'Erro inesperado'
+    const message = e instanceof Error ? e.message : "Erro interno";
+    console.error("❌ Erro em /api/saipos/sync-manual:", e);
     return NextResponse.json(
-      { success: false, message },
-      { status: 500 },
-    )
+      {
+        success: false,
+        error: message,
+      },
+      { status: 500 }
+    );
   }
 }

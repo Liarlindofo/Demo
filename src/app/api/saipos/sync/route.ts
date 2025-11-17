@@ -1,4 +1,5 @@
 export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { normalizeSalesResponse, type SaiposRawSale } from "@/lib/saipos-api";
@@ -8,190 +9,44 @@ import { syncStackAuthUser } from "@/lib/stack-auth-sync";
 
 interface SyncRequest {
   apiId?: string;
-  storeId?: string;
-  startDate?: string;
-  endDate?: string;
-  initialLoad?: boolean; // Flag para carregamento inicial de 90 dias
+  days?: number;
 }
 
-// Função helper para fazer delay
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const BRT_OFFSET = "-03:00";
 
-// Função helper para fazer requisição com retry
-const fetchWithRetry = async (
-  url: string,
-  token: string,
-  retries = 3
-): Promise<Response> => {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    });
-
-    if (response.status === 429) {
-      const retryAfter = response.headers.get("Retry-After");
-      const waitTime = retryAfter
-        ? parseInt(retryAfter) * 1000
-        : attempt * 2000;
-      console.warn(
-        `⚠️ Rate limit (429) - tentativa ${attempt}/${retries}. Aguardando ${waitTime}ms...`
-      );
-      await sleep(waitTime);
-      continue;
-    }
-
-    return response;
-  }
-  throw new Error(`Rate limit após ${retries} tentativas`);
-};
-
-// Função para buscar vendas da API Saipos com paginação
-async function fetchSalesFromSaipos(
-  token: string,
-  startDate: string,
-  endDate: string
-): Promise<{ filteredSales: unknown[]; totalFetched: number }> {
-  // Converter datas para UTC-3 (America/Sao_Paulo)
-  // startDate e endDate vêm como YYYY-MM-DD (sem timezone)
-  const startDateOnly = startDate.split('T')[0]; // Extrair apenas a data (YYYY-MM-DD)
-  const endDateOnly = endDate.split('T')[0];
-  
-  // Criar objetos Date com UTC-3: 00:00:00 para início e 23:59:59 para fim
-  const startDateObj = new Date(`${startDateOnly}T00:00:00-03:00`);
-  const endDateObj = new Date(`${endDateOnly}T23:59:59-03:00`);
-  
-  // Converter para ISO string para enviar à API Saipos
-  const startISO = startDateObj.toISOString();
-  const endISO = endDateObj.toISOString();
-  
-  console.log(`📅 Buscando vendas de ${startDateOnly} a ${endDateOnly} (UTC-3)`);
-  console.log(`📅 API Saipos receberá: ${startISO} até ${endISO}`);
-
-  const allSales: unknown[] = [];
-  let offset = 0;
-  const limit = 200;
-  let hasMoreData = true;
-  let consecutiveEmptyPages = 0;
-  const maxConsecutiveEmpty = 3; // Parar após 3 páginas vazias consecutivas
-  let totalRequests = 0;
-  const maxTotalRequests = 100;
-  const delayBetweenRequests = 800;
-  let totalFetched = 0;
-  const maxOrders = 6000;
-
-  while (hasMoreData && totalFetched < maxOrders) {
-    const apiUrl = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(
-      startISO
-    )}&p_filter_date_end=${encodeURIComponent(
-      endISO
-    )}&p_limit=${limit}&p_offset=${offset}`;
-
-    totalRequests++;
-    console.log(
-      `📥 Sincronizando vendas: offset=${offset}, limit=${limit} (requisição ${totalRequests}/${maxTotalRequests})`
-    );
-
-    let response: Response;
-    try {
-      response = await fetchWithRetry(apiUrl, token);
-    } catch (error) {
-      console.error("Erro ao fazer requisição:", error);
-      break;
-    }
-
-    if (!response.ok && response.status !== 429) {
-      const errorText = await response.text().catch(() => "Erro desconhecido");
-      console.error("Erro na API Saipos:", response.status, errorText);
-      break;
-    }
-
-    let pageData: unknown;
-    try {
-      const text = await response.text();
-      pageData = text ? JSON.parse(text) : null;
-    } catch (parseError) {
-      console.error("Erro ao fazer parse do JSON:", parseError);
-      consecutiveEmptyPages++;
-      offset += limit;
-      continue;
-    }
-
-    const pageArray = Array.isArray(pageData)
-      ? pageData
-      : Array.isArray((pageData as Record<string, unknown>)?.data)
-      ? (pageData as { data: unknown[] }).data
-      : Array.isArray((pageData as Record<string, unknown>)?.items)
-      ? (pageData as { items: unknown[] }).items
-      : [];
-
-    if (pageArray.length === 0 || pageData === null) {
-      consecutiveEmptyPages++;
-      if (consecutiveEmptyPages >= maxConsecutiveEmpty) {
-        console.log(`🛑 Parando após ${maxConsecutiveEmpty} páginas vazias consecutivas`);
-        hasMoreData = false;
-        break;
-      }
-      offset += limit;
-      await sleep(delayBetweenRequests);
-      continue;
-    }
-
-    // Resetar contador quando encontrar dados
-    consecutiveEmptyPages = 0;
-    allSales.push(...pageArray);
-    totalFetched += pageArray.length;
-    console.log(
-      `✅ Página carregada: ${pageArray.length} venda(s) (total: ${allSales.length})`
-    );
-
-    offset += limit;
-
-    if (totalRequests >= maxTotalRequests) {
-      console.warn(
-        `⚠️ Limite de requisições atingido (${totalRequests}). Parando paginação.`
-      );
-      hasMoreData = false;
-      break;
-    }
-
-    if (hasMoreData) {
-      await sleep(delayBetweenRequests);
-    }
-  }
-
-  // Filtrar vendas pelo período solicitado antes de retornar
-  // IMPORTANTE: Usar shift_date ?? sale_date ?? created_at conforme especificado
-  const filteredSales = allSales.filter((sale: unknown) => {
-    const saleObj = sale as { shift_date?: string; sale_date?: string; created_at?: string; [key: string]: unknown };
-    // Usar o campo correto: shift_date ?? sale_date ?? created_at
-    const saleDate = saleObj.shift_date ?? saleObj.sale_date ?? saleObj.created_at;
-    
-    if (!saleDate) {
-      return false;
-    }
-    
-    // Extrair apenas a data (YYYY-MM-DD) para comparação
-    const saleDateOnly = new Date(saleDate).toISOString().split("T")[0];
-    return saleDateOnly >= startDateOnly && saleDateOnly <= endDateOnly;
+function computeBRTWindow(days = 15): { start: Date; end: Date } {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   });
 
-  console.log(`📊 Total de vendas carregadas: ${allSales.length}`);
-  console.log(`📊 Total de vendas após filtro por data: ${filteredSales.length}`);
-  console.log(`📊 Período solicitado: ${startDateOnly} a ${endDateOnly}`);
+  const now = new Date();
 
-  return { filteredSales, totalFetched };
+  const toYmd = (d: Date) => {
+    const parts = fmt.formatToParts(d);
+    const y = parts.find((p) => p.type === "year")?.value;
+    const m = parts.find((p) => p.type === "month")?.value;
+    const da = parts.find((p) => p.type === "day")?.value;
+    return `${y}-${m}-${da}`;
+  };
+
+  const endLocalYmd = toYmd(now);
+  const startRef = new Date(now);
+  startRef.setDate(startRef.getDate() - (days - 1));
+  const startLocalYmd = toYmd(startRef);
+
+  const startDate = new Date(`${startLocalYmd}T00:00:00${BRT_OFFSET}`);
+  const endDate = new Date(`${endLocalYmd}T23:59:59${BRT_OFFSET}`);
+  return { start: startDate, end: endDate };
 }
 
-// POST /api/saipos/sync - Sincronizar dados de uma loja específica
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function POST(request: Request) {
   try {
-    // Autenticação do usuário
+    // 1) Autenticação via Stack Auth
     const stackUser = await stackServerApp.getUser({ or: "return-null" });
     if (!stackUser) {
       return NextResponse.json(
@@ -200,481 +55,287 @@ export async function POST(request: Request) {
       );
     }
 
-    // Garantir usuário no banco (necessário para autenticação)
-    await syncStackAuthUser({
+    const dbUser = await syncStackAuthUser({
       id: stackUser.id,
       primaryEmail: stackUser.primaryEmail || undefined,
       displayName: stackUser.displayName || undefined,
       profileImageUrl: stackUser.profileImageUrl || undefined,
       primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
     });
-    // userId será obtido da API abaixo (api.userId)
+    const userId = dbUser.id;
 
     const body = (await request.json()) as SyncRequest;
-    const { apiId, startDate, endDate, initialLoad } = body;
+    const apiId = body.apiId?.trim();
+    const days = body.days && body.days > 0 ? body.days : 15;
 
     if (!apiId) {
-      console.error("❌ apiId não fornecido");
       return NextResponse.json(
         { success: false, error: "apiId é obrigatório" },
         { status: 400 }
       );
     }
 
-    // Buscar API do banco
+    // 2) Buscar API Saipos e validar dono
     const saiposAPI = await db.userAPI.findUnique({
       where: { id: apiId },
     });
 
     if (!saiposAPI || saiposAPI.type !== "saipos") {
-      console.error("❌ API Saipos não encontrada:", apiId);
       return NextResponse.json(
         { success: false, error: "API Saipos não encontrada" },
         { status: 404 }
       );
     }
 
+    if (saiposAPI.userId !== userId) {
+      console.error("API não pertence ao usuário atual", {
+        apiUserId: saiposAPI.userId,
+        userId,
+      });
+      return NextResponse.json(
+        { success: false, error: "API não pertence ao usuário atual" },
+        { status: 403 }
+      );
+    }
+
     const apiKey = saiposAPI.apiKey;
-    
-    // Usar sempre o storeId da API (formato: store_${apiId})
-    if (!saiposAPI.storeId) {
-      console.error("❌ StoreId não encontrado na API. A API deve ter um storeId gerado.");
+    const targetStoreId = saiposAPI.storeId;
+    const apiUserId = saiposAPI.userId;
+
+    if (!targetStoreId) {
       return NextResponse.json(
         { success: false, error: "StoreId não configurado na API" },
         { status: 400 }
       );
     }
-    
-    const targetStoreId = saiposAPI.storeId;
-    const apiUserId = saiposAPI.userId;
-
-    // Proteção: garantir que a API tem userId antes de continuar
-    if (!apiUserId) {
-      console.error("❌ API sem userId associado. Não é possível sincronizar sem userId.");
-      return NextResponse.json(
-        { success: false, error: "API sem userId associado" },
-        { status: 400 }
-      );
-    }
 
     if (!apiKey) {
-      console.error("❌ API key não encontrada");
       return NextResponse.json(
         { success: false, error: "API key não encontrada" },
         { status: 401 }
       );
     }
 
-    console.log("📊 Sincronizando com storeId:", targetStoreId, "userId:", apiUserId);
-
     const cleanToken = apiKey.trim().replace(/^Bearer\s+/i, "");
-
     if (!cleanToken) {
-      console.error("❌ Token vazio após limpeza");
       return NextResponse.json(
         { success: false, error: "Token inválido" },
         { status: 401 }
       );
     }
 
-    // Determinar período de sincronização
-    // Sempre baixar os últimos 15 dias FINAIS (UTC-3) sem falhar
-    const today = new Date();
-    // Ajustar para UTC-3 (America/Sao_Paulo)
-    const todayBRT = new Date(today.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-    const syncEndDate = endDate || todayBRT.toISOString().split("T")[0];
-    
-    // Calcular 15 dias atrás (14 dias + hoje = 15 dias)
-    const syncStartDate = startDate || (() => {
-      const start = new Date(todayBRT);
-      start.setDate(start.getDate() - 14); // 14 dias atrás + hoje = 15 dias
-      return start.toISOString().split("T")[0];
-    })();
+    // 3) Janela deslizante de N dias (default 15)
+    const { start, end } = computeBRTWindow(days);
 
     console.log(
-      `🔄 Iniciando sincronização para storeId="${targetStoreId}", período: ${syncStartDate} a ${syncEndDate}${initialLoad ? " (carregamento inicial)" : ""}`
+      `🔄 Sincronizando sales_daily para apiId=${apiId}, storeId=${targetStoreId}, período ${start.toISOString()} -> ${end.toISOString()}`
     );
-    console.log(`📊 API ID: ${apiId}, Store ID: ${targetStoreId}`);
 
-    let syncedCount = 0;
-    let totalFetchedAll = 0;
+    // 4) Apagar registros antigos desta API (antes do start)
+    const deletedOld = await db.salesDaily.deleteMany({
+      where: {
+        apiId,
+        date: { lt: start },
+      },
+    });
+    console.log(
+      `🧹 Removidos ${deletedOld.count} registros antigos de sales_daily para apiId=${apiId}`
+    );
 
-    // Processar em lotes quando houver mais de 1 dia para evitar rate limiting
-    // Sempre processar em lotes para períodos de 15 dias
-    if (syncStartDate !== syncEndDate) {
-      const start = new Date(syncStartDate);
-      const end = new Date(syncEndDate);
-      const daysToProcess: string[] = [];
+    // 5) Buscar vendas reais da Saipos para o período inteiro
+    const startISO = start.toISOString();
+    const endISO = end.toISOString();
 
-      // Gerar lista de dias
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        daysToProcess.push(d.toISOString().split("T")[0]);
-      }
+    async function fetchSalesFromSaiposPeriod(): Promise<SaiposRawSale[]> {
+      const allSales: unknown[] = [];
+      const limit = 200;
+      let offset = 0;
+      let totalRequests = 0;
 
-      console.log(
-        `📅 Processando ${daysToProcess.length} dias (últimos 15 dias) em lotes para evitar rate limiting...`
-      );
+      while (true) {
+        const url = `https://data.saipos.io/v1/search_sales?p_date_column_filter=shift_date&p_filter_date_start=${encodeURIComponent(
+          startISO
+        )}&p_filter_date_end=${encodeURIComponent(
+          endISO
+        )}&p_limit=${limit}&p_offset=${offset}`;
 
-      // Processar em lotes de 7 dias por vez
-      const batchSize = 7;
-      for (let i = 0; i < daysToProcess.length; i += batchSize) {
-        const batch = daysToProcess.slice(i, i + batchSize);
-        const batchStart = batch[0];
-        const batchEnd = batch[batch.length - 1];
-
+        totalRequests++;
         console.log(
-          `📦 Processando lote ${Math.floor(i / batchSize) + 1}/${Math.ceil(daysToProcess.length / batchSize)}: ${batchStart} a ${batchEnd}`
+          `📥 [Saipos] Página ${totalRequests} (offset=${offset}) para apiId=${apiId}`
         );
 
-        try {
-          const { filteredSales: sales, totalFetched } = await fetchSalesFromSaipos(
-            cleanToken,
-            batchStart,
-            batchEnd
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${cleanToken}`,
+          },
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          console.error(
+            "❌ Erro na API Saipos:",
+            res.status,
+            res.statusText,
+            txt.slice(0, 300)
           );
-          totalFetchedAll += totalFetched;
-
-          if (sales.length > 0) {
-            const normalized = normalizeSalesResponse(sales as SaiposRawSale[]);
-
-            // Usar transação para salvar múltiplos registros de uma vez
-            // Isso evita abrir muitas conexões simultaneamente
-            try {
-              await db.$transaction(async (tx) => {
-                  for (const data of normalized) {
-                    const date = new Date(data.date);
-
-                    await tx.salesDaily.upsert({
-                      where: {
-                        user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
-                      },
-                      create: {
-                        userId: apiUserId, // Sempre garantir userId no create
-                        storeId: targetStoreId,
-                        date,
-                        totalOrders: data.totalOrders,
-                        canceledOrders: data.canceledOrders,
-                        totalSales: new Prisma.Decimal(data.totalSales),
-                        averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
-                        averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
-                        qtdDelivery: data.qtdDelivery,
-                        qtdBalcao: data.qtdBalcao,
-                        qtdIFood: data.qtdIFood,
-                        qtdTelefone: data.qtdTelefone,
-                        qtdCentralPedidos: data.qtdCentralPedidos,
-                        qtdDeliveryDireto: data.qtdDeliveryDireto,
-                        totalItems: data.totalItems,
-                        totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
-                        totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
-                        totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
-                      },
-                      update: {
-                        userId: apiUserId, // Garantir que userId fica setado no update também
-                        totalOrders: data.totalOrders,
-                        canceledOrders: data.canceledOrders,
-                        totalSales: new Prisma.Decimal(data.totalSales),
-                        averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
-                        averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
-                        qtdDelivery: data.qtdDelivery,
-                        qtdBalcao: data.qtdBalcao,
-                        qtdIFood: data.qtdIFood,
-                        qtdTelefone: data.qtdTelefone,
-                        qtdCentralPedidos: data.qtdCentralPedidos,
-                        qtdDeliveryDireto: data.qtdDeliveryDireto,
-                        totalItems: data.totalItems,
-                        totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
-                        totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
-                        totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
-                        updatedAt: new Date(),
-                      },
-                    });
-                  }
-              });
-              syncedCount += normalized.length;
-              console.log(`✅ Upsert concluído em sales_daily: ${normalized.length} registros`);
-              try {
-                await db.salesRaw.create({
-                  data: {
-                    storeId: targetStoreId,
-                    period: { start: batchStart, end: batchEnd } as unknown as Prisma.InputJsonValue,
-                    payload: normalized as unknown as Prisma.InputJsonValue,
-                  },
-                });
-                console.log("🗃️ Snapshot salvo em sales_raw");
-              } catch (e) {
-                console.warn("⚠️ Falha ao salvar snapshot em sales_raw:", e);
-              }
-            } catch (error) {
-              console.error(`Erro ao salvar lote de dados:`, error);
-              // Se a transação falhar, tentar salvar individualmente
-              for (const data of normalized) {
-                try {
-                  const date = new Date(data.date);
-
-                  await db.salesDaily.upsert({
-                    where: {
-                      user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
-                    },
-                    create: {
-                      userId: apiUserId, // Sempre garantir userId no create
-                      storeId: targetStoreId,
-                      date,
-                      totalOrders: data.totalOrders,
-                      canceledOrders: data.canceledOrders,
-                      totalSales: new Prisma.Decimal(data.totalSales),
-                      averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
-                      averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
-                      qtdDelivery: data.qtdDelivery,
-                      qtdBalcao: data.qtdBalcao,
-                      qtdIFood: data.qtdIFood,
-                      qtdTelefone: data.qtdTelefone,
-                      qtdCentralPedidos: data.qtdCentralPedidos,
-                      qtdDeliveryDireto: data.qtdDeliveryDireto,
-                      totalItems: data.totalItems,
-                      totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
-                      totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
-                      totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
-                    },
-                    update: {
-                      userId: apiUserId, // Garantir que userId fica setado no update também
-                      totalOrders: data.totalOrders,
-                      canceledOrders: data.canceledOrders,
-                      totalSales: new Prisma.Decimal(data.totalSales),
-                      averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
-                      averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
-                      qtdDelivery: data.qtdDelivery,
-                      qtdBalcao: data.qtdBalcao,
-                      qtdIFood: data.qtdIFood,
-                      qtdTelefone: data.qtdTelefone,
-                      qtdCentralPedidos: data.qtdCentralPedidos,
-                      qtdDeliveryDireto: data.qtdDeliveryDireto,
-                      totalItems: data.totalItems,
-                      totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
-                      totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
-                      totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
-                      updatedAt: new Date(),
-                    },
-                  });
-                  syncedCount++;
-                } catch (individualError) {
-                  console.error(`Erro ao salvar dados para ${data.date}:`, individualError);
-                }
-              }
-            }
-          }
-
-          // Aguardar entre lotes para evitar rate limiting
-          if (i + batchSize < daysToProcess.length) {
-            await sleep(2000); // 2 segundos entre lotes
-          }
-        } catch (error) {
-          console.error(`Erro ao processar lote ${batchStart}-${batchEnd}:`, error);
-          // Continuar com próximo lote
+          break;
         }
-      }
-    } else {
-      // Processamento normal (não é carregamento inicial ou período pequeno)
-      const { filteredSales: sales, totalFetched } = await fetchSalesFromSaipos(
-        cleanToken,
-        syncStartDate,
-        syncEndDate
-      );
-      totalFetchedAll += totalFetched;
 
-      if (sales.length === 0) {
-        console.log("⚠️ Nenhuma venda encontrada no período");
-        return NextResponse.json({
-          success: true,
-          message: "Nenhuma venda encontrada",
-          synced: 0,
-        });
-      }
-
-      // Normalizar dados
-      console.log(`📊 Normalizando ${sales.length} vendas...`);
-      const normalized = normalizeSalesResponse(sales as SaiposRawSale[]);
-      console.log(`📊 ${normalized.length} vendas normalizadas`);
-
-      if (normalized.length === 0) {
-        console.log("⚠️ Nenhuma venda normalizada");
-        return NextResponse.json({
-          success: true,
-          message: "Nenhuma venda normalizada",
-          synced: 0,
-        });
-      }
-      
-      // Log das primeiras vendas normalizadas para debug
-      if (normalized.length > 0) {
-        console.log(`📊 Primeira venda normalizada:`, {
-          date: normalized[0].date,
-          totalSales: normalized[0].totalSales,
-          totalOrders: normalized[0].totalOrders,
-        });
-      }
-
-      // Usar transação para salvar múltiplos registros de uma vez
-      // Isso evita abrir muitas conexões simultaneamente
-      try {
-        await db.$transaction(async (tx) => {
-            for (const data of normalized) {
-              const date = new Date(data.date);
-
-              await tx.salesDaily.upsert({
-                where: {
-                  user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
-                },
-                create: {
-                  userId: apiUserId, // Sempre garantir userId no create
-                  storeId: targetStoreId,
-                  date,
-                  totalOrders: data.totalOrders,
-                  canceledOrders: data.canceledOrders,
-                  totalSales: new Prisma.Decimal(data.totalSales),
-                  averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
-                  averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
-                  qtdDelivery: data.qtdDelivery,
-                  qtdBalcao: data.qtdBalcao,
-                  qtdIFood: data.qtdIFood,
-                  qtdTelefone: data.qtdTelefone,
-                  qtdCentralPedidos: data.qtdCentralPedidos,
-                  qtdDeliveryDireto: data.qtdDeliveryDireto,
-                  totalItems: data.totalItems,
-                  totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
-                  totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
-                  totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
-                },
-                update: {
-                  userId: apiUserId, // Garantir que userId fica setado no update também
-                  totalOrders: data.totalOrders,
-                  canceledOrders: data.canceledOrders,
-                  totalSales: new Prisma.Decimal(data.totalSales),
-                  averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
-                  averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
-                  qtdDelivery: data.qtdDelivery,
-                  qtdBalcao: data.qtdBalcao,
-                  qtdIFood: data.qtdIFood,
-                  qtdTelefone: data.qtdTelefone,
-                  qtdCentralPedidos: data.qtdCentralPedidos,
-                  qtdDeliveryDireto: data.qtdDeliveryDireto,
-                  totalItems: data.totalItems,
-                  totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
-                  totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
-                  totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
-                  updatedAt: new Date(),
-                },
-              });
-            }
-        });
-        syncedCount += normalized.length;
-        console.log(`✅ Upsert concluído em sales_daily: ${normalized.length} registros`);
+        let pageData: unknown;
         try {
-          await db.salesRaw.create({
-            data: {
-              storeId: targetStoreId,
-              period: { start: syncStartDate, end: syncEndDate } as unknown as Prisma.InputJsonValue,
-              payload: normalized as unknown as Prisma.InputJsonValue,
-            },
-          });
-          console.log("🗃️ Snapshot salvo em sales_raw");
-        } catch (e) {
-          console.warn("⚠️ Falha ao salvar snapshot em sales_raw:", e);
+          const text = await res.text();
+          pageData = text ? JSON.parse(text) : null;
+        } catch (err) {
+          console.error("❌ Erro ao parsear JSON da Saipos:", err);
+          break;
         }
-      } catch (error) {
-        console.error(`Erro ao salvar lote de dados:`, error);
-        // Se a transação falhar, tentar salvar individualmente com retry
-        for (const data of normalized) {
-          let retries = 3;
-          while (retries > 0) {
-            try {
-              const date = new Date(data.date);
-              const upsertResult = await db.salesDaily.upsert({
-                where: {
-                  user_store_date: { userId: apiUserId, storeId: targetStoreId, date },
-                },
-                create: {
-                  userId: apiUserId, // Sempre garantir userId no create
-                  storeId: targetStoreId,
-                  date,
-                  totalOrders: data.totalOrders,
-                  canceledOrders: data.canceledOrders,
-                  totalSales: new Prisma.Decimal(data.totalSales),
-                  averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
-                  averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
-                  qtdDelivery: data.qtdDelivery,
-                  qtdBalcao: data.qtdBalcao,
-                  qtdIFood: data.qtdIFood,
-                  qtdTelefone: data.qtdTelefone,
-                  qtdCentralPedidos: data.qtdCentralPedidos,
-                  qtdDeliveryDireto: data.qtdDeliveryDireto,
-                  totalItems: data.totalItems,
-                  totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
-                  totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
-                  totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
-                },
-                update: {
-                  userId: apiUserId, // Garantir que userId fica setado no update também
-                  totalOrders: data.totalOrders,
-                  canceledOrders: data.canceledOrders,
-                  totalSales: new Prisma.Decimal(data.totalSales),
-                  averageTicketDelivery: new Prisma.Decimal(data.averageTicketDelivery || 0),
-                  averageTicketBalcao: new Prisma.Decimal(data.averageTicketBalcao || 0),
-                  qtdDelivery: data.qtdDelivery,
-                  qtdBalcao: data.qtdBalcao,
-                  qtdIFood: data.qtdIFood,
-                  qtdTelefone: data.qtdTelefone,
-                  qtdCentralPedidos: data.qtdCentralPedidos,
-                  qtdDeliveryDireto: data.qtdDeliveryDireto,
-                  totalItems: data.totalItems,
-                  totalDeliveryFee: new Prisma.Decimal(data.totalDeliveryFee || 0),
-                  totalAdditions: new Prisma.Decimal(data.totalAdditions || 0),
-                  totalDiscounts: new Prisma.Decimal(data.totalDiscounts || 0),
-                  updatedAt: new Date(),
-                },
-              });
 
-              if (syncedCount === 0) {
-                console.log(`✅ Primeiro registro salvo:`, {
-                  storeId: upsertResult.storeId,
-                  date: upsertResult.date,
-                  totalSales: upsertResult.totalSales,
-                  totalOrders: upsertResult.totalOrders,
-                });
-              }
+        const pageArray = Array.isArray(pageData)
+          ? pageData
+          : Array.isArray((pageData as any)?.data)
+          ? ((pageData as any).data as unknown[])
+          : Array.isArray((pageData as any)?.items)
+          ? ((pageData as any).items as unknown[])
+          : [];
 
-              syncedCount++;
-              break; // Sucesso, sair do loop de retry
-            } catch (individualError) {
-              retries--;
-              if (retries === 0) {
-                console.error(`Erro ao salvar dados para ${data.date} após 3 tentativas:`, individualError);
-              } else {
-                console.warn(`Tentativa ${3 - retries}/3 para salvar ${data.date}, aguardando...`);
-                await sleep(1000); // Aguardar 1 segundo antes de tentar novamente
-              }
-            }
-          }
+        if (pageArray.length === 0) {
+          console.log("⚠️ Página vazia, encerrando paginação.");
+          break;
         }
+
+        allSales.push(...pageArray);
+        offset += limit;
+
+        if (totalRequests >= 100) {
+          console.warn(
+            "⚠️ Limite de 100 requisições atingido, parando paginação."
+          );
+          break;
+        }
+
+        await sleep(800);
       }
+
+      console.log(`📊 Total bruto de vendas carregadas: ${allSales.length}`);
+      return allSales as SaiposRawSale[];
     }
 
+    const rawSales = await fetchSalesFromSaiposPeriod();
+    const normalized = normalizeSalesResponse(rawSales);
+
     console.log(
-      `✅ ${syncedCount} registros sincronizados com sucesso (${totalFetchedAll} pedidos brutos baixados)`
+      `📊 ${normalized.length} registros normalizados para agregação diária em sales_daily`
     );
+
+    if (normalized.length === 0) {
+      return NextResponse.json({
+        success: true,
+        apiId,
+        storeId: targetStoreId,
+        startDate: start,
+        endDate: end,
+        daysSynced: 0,
+        message: "Nenhuma venda encontrada no período para esta API.",
+      });
+    }
+
+    // 6) UPSERT em sales_daily por (apiId, date)
+    const upserts = normalized.map((data) => {
+      const date = new Date(data.date);
+      return db.salesDaily.upsert({
+        where: {
+          sales_daily_api_date_unique: {
+            apiId,
+            date,
+          },
+        },
+        create: {
+          apiId,
+          userId: apiUserId,
+          storeId: targetStoreId,
+          date,
+          totalOrders: data.totalOrders,
+          canceledOrders: data.canceledOrders,
+          totalSales: new Prisma.Decimal(data.totalSales),
+          averageTicketDelivery: new Prisma.Decimal(
+            data.averageTicketDelivery || 0
+          ),
+          averageTicketBalcao: new Prisma.Decimal(
+            data.averageTicketBalcao || 0
+          ),
+          qtdDelivery: data.qtdDelivery,
+          qtdBalcao: data.qtdBalcao,
+          qtdIFood: data.qtdIFood,
+          qtdTelefone: data.qtdTelefone,
+          qtdCentralPedidos: data.qtdCentralPedidos,
+          qtdDeliveryDireto: data.qtdDeliveryDireto,
+          totalItems: data.totalItems,
+          totalDeliveryFee: new Prisma.Decimal(
+            data.totalDeliveryFee || 0
+          ),
+          totalAdditions: new Prisma.Decimal(
+            data.totalAdditions || 0
+          ),
+          totalDiscounts: new Prisma.Decimal(
+            data.totalDiscounts || 0
+          ),
+          channels: data.channels as unknown as Prisma.JsonValue,
+        },
+        update: {
+          totalOrders: data.totalOrders,
+          canceledOrders: data.canceledOrders,
+          totalSales: new Prisma.Decimal(data.totalSales),
+          averageTicketDelivery: new Prisma.Decimal(
+            data.averageTicketDelivery || 0
+          ),
+          averageTicketBalcao: new Prisma.Decimal(
+            data.averageTicketBalcao || 0
+          ),
+          qtdDelivery: data.qtdDelivery,
+          qtdBalcao: data.qtdBalcao,
+          qtdIFood: data.qtdIFood,
+          qtdTelefone: data.qtdTelefone,
+          qtdCentralPedidos: data.qtdCentralPedidos,
+          qtdDeliveryDireto: data.qtdDeliveryDireto,
+          totalItems: data.totalItems,
+          totalDeliveryFee: new Prisma.Decimal(
+            data.totalDeliveryFee || 0
+          ),
+          totalAdditions: new Prisma.Decimal(
+            data.totalAdditions || 0
+          ),
+          totalDiscounts: new Prisma.Decimal(
+            data.totalDiscounts || 0
+          ),
+          channels: data.channels as unknown as Prisma.JsonValue,
+          updatedAt: new Date(),
+        },
+      });
+    });
+
+    await db.$transaction(upserts);
+    console.log(`✅ ${upserts.length} dias sincronizados em sales_daily`);
 
     return NextResponse.json({
       success: true,
-      message: "Sincronização concluída",
-      synced: syncedCount,
-      period: { start: syncStartDate, end: syncEndDate },
+      apiId,
+      storeId: targetStoreId,
+      startDate: start,
+      endDate: end,
+      daysSynced: upserts.length,
     });
   } catch (error) {
-    console.error("❌ Erro na sincronização:", error);
-    // Nunca retornar erro - apenas logar
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : "Erro desconhecido",
-    });
+    console.error("❌ Erro na sincronização Saipos (sales_daily):", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Erro desconhecido",
+      },
+      { status: 500 }
+    );
   }
 }
-
