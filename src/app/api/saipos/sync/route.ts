@@ -194,12 +194,25 @@ export async function POST(request: Request) {
           break;
         }
 
+        // Type guard para verificar se o objeto tem propriedades data ou items
+        const hasDataProperty = (obj: unknown): obj is { data: unknown[] } => {
+          if (typeof obj !== 'object' || obj === null) return false;
+          const candidate = obj as Record<string, unknown>;
+          return 'data' in candidate && Array.isArray(candidate.data);
+        };
+
+        const hasItemsProperty = (obj: unknown): obj is { items: unknown[] } => {
+          if (typeof obj !== 'object' || obj === null) return false;
+          const candidate = obj as Record<string, unknown>;
+          return 'items' in candidate && Array.isArray(candidate.items);
+        };
+
         const pageArray = Array.isArray(pageData)
           ? pageData
-          : Array.isArray((pageData as any)?.data)
-          ? ((pageData as any).data as unknown[])
-          : Array.isArray((pageData as any)?.items)
-          ? ((pageData as any).items as unknown[])
+          : hasDataProperty(pageData)
+          ? pageData.data
+          : hasItemsProperty(pageData)
+          ? pageData.items
           : [];
 
         if (pageArray.length === 0) {
