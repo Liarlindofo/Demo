@@ -268,74 +268,44 @@ export async function POST(request: Request) {
         },
         create: {
           apiId,
-          userId: apiUserId,
           storeId: targetStoreId,
           date,
           totalOrders: data.totalOrders,
-          canceledOrders: data.canceledOrders,
           totalSales: new Prisma.Decimal(data.totalSales),
-          averageTicketDelivery: new Prisma.Decimal(
-            data.averageTicketDelivery || 0
-          ),
-          averageTicketBalcao: new Prisma.Decimal(
-            data.averageTicketBalcao || 0
-          ),
-          qtdDelivery: data.qtdDelivery,
-          qtdBalcao: data.qtdBalcao,
-          qtdIFood: data.qtdIFood,
-          qtdTelefone: data.qtdTelefone,
-          qtdCentralPedidos: data.qtdCentralPedidos,
-          qtdDeliveryDireto: data.qtdDeliveryDireto,
-          totalItems: data.totalItems,
-          totalDeliveryFee: new Prisma.Decimal(
-            data.totalDeliveryFee || 0
-          ),
-          totalAdditions: new Prisma.Decimal(
-            data.totalAdditions || 0
-          ),
-          totalDiscounts: new Prisma.Decimal(
-            data.totalDiscounts || 0
-          ),
           channels: {
             ifood: data.qtdIFood,
             telefone: data.qtdTelefone,
             centralPedidos: data.qtdCentralPedidos,
             deliveryDireto: data.qtdDeliveryDireto,
+            canceledOrders: data.canceledOrders,
+            qtdDelivery: data.qtdDelivery,
+            qtdBalcao: data.qtdBalcao,
+            totalItems: data.totalItems,
+            totalDeliveryFee: data.totalDeliveryFee || 0,
+            totalAdditions: data.totalAdditions || 0,
+            totalDiscounts: data.totalDiscounts || 0,
+            averageTicketDelivery: data.averageTicketDelivery || 0,
+            averageTicketBalcao: data.averageTicketBalcao || 0,
           } as Prisma.InputJsonValue,
         },
         update: {
           totalOrders: data.totalOrders,
-          canceledOrders: data.canceledOrders,
           totalSales: new Prisma.Decimal(data.totalSales),
-          averageTicketDelivery: new Prisma.Decimal(
-            data.averageTicketDelivery || 0
-          ),
-          averageTicketBalcao: new Prisma.Decimal(
-            data.averageTicketBalcao || 0
-          ),
-          qtdDelivery: data.qtdDelivery,
-          qtdBalcao: data.qtdBalcao,
-          qtdIFood: data.qtdIFood,
-          qtdTelefone: data.qtdTelefone,
-          qtdCentralPedidos: data.qtdCentralPedidos,
-          qtdDeliveryDireto: data.qtdDeliveryDireto,
-          totalItems: data.totalItems,
-          totalDeliveryFee: new Prisma.Decimal(
-            data.totalDeliveryFee || 0
-          ),
-          totalAdditions: new Prisma.Decimal(
-            data.totalAdditions || 0
-          ),
-          totalDiscounts: new Prisma.Decimal(
-            data.totalDiscounts || 0
-          ),
           channels: {
             ifood: data.qtdIFood,
             telefone: data.qtdTelefone,
             centralPedidos: data.qtdCentralPedidos,
             deliveryDireto: data.qtdDeliveryDireto,
+            canceledOrders: data.canceledOrders,
+            qtdDelivery: data.qtdDelivery,
+            qtdBalcao: data.qtdBalcao,
+            totalItems: data.totalItems,
+            totalDeliveryFee: data.totalDeliveryFee || 0,
+            totalAdditions: data.totalAdditions || 0,
+            totalDiscounts: data.totalDiscounts || 0,
+            averageTicketDelivery: data.averageTicketDelivery || 0,
+            averageTicketBalcao: data.averageTicketBalcao || 0,
           } as Prisma.InputJsonValue,
-          updatedAt: new Date(),
         },
       });
     });
