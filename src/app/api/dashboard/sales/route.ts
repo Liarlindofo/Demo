@@ -106,19 +106,35 @@ export async function GET(request: Request) {
       throw new Error("Modelo salesDaily não está disponível. Execute 'npx prisma generate' para regenerar o Prisma Client.");
     }
     
-    // Verificar se há dados no banco para este userId + storeId
+    // Buscar a API pelo storeId e userId para obter o apiId
+    const api = await db.userAPI.findFirst({
+      where: {
+        storeId: storeId,
+        userId: userId,
+        type: "saipos",
+      },
+    });
+
+    if (!api) {
+      return NextResponse.json(
+        { error: "API não encontrada para este storeId" },
+        { status: 404 }
+      );
+    }
+
+    // Verificar se há dados no banco para este apiId + storeId
     let totalRecords = 0;
     let allRecords: Array<{ date: Date; totalSales: unknown; totalOrders: number }> = [];
     
     try {
       totalRecords = await db.salesDaily.count({
-        where: { userId, storeId: storeId },
+        where: { apiId: api.id, storeId: storeId },
       });
       console.log(`📊 Total de registros no banco para storeId "${storeId}": ${totalRecords}`);
       
       // Buscar todos os registros para debug
       allRecords = await db.salesDaily.findMany({
-        where: { userId, storeId: storeId },
+        where: { apiId: api.id, storeId: storeId },
         select: { date: true, totalSales: true, totalOrders: true },
         take: 5,
         orderBy: { date: "desc" },
@@ -135,7 +151,7 @@ export async function GET(request: Request) {
       // Adicionar timeout para evitar travamento do pool
       const queryPromise = db.salesDaily.findMany({
         where: {
-          userId,
+          apiId: api.id,
           storeId: storeId,
           date: {
             gte: startDate,
@@ -214,7 +230,7 @@ export async function GET(request: Request) {
             try {
             const fallbackQueryPromise = db.salesDaily.findMany({
                 where: {
-                  userId,
+                  apiId: api.id,
                   storeId: storeId,
                   date: {
                     gte: fallbackStartDate,

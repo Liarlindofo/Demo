@@ -51,6 +51,15 @@ async function main() {
         // Continuar mesmo se o backfill falhar
       }
       
+      // Terceiro, limpar registros com apiId NULL antes do db:push
+      console.log('\n🧹 Limpando registros com apiId NULL...');
+      try {
+        runCommand('tsx scripts/clean-null-apiid.ts', 'Limpando apiId NULL');
+      } catch (cleanError) {
+        console.warn('⚠️  Aviso: Erro ao limpar apiId NULL (continuando mesmo assim)');
+        // Continuar mesmo se a limpeza falhar
+      }
+      
       // Depois, fazer db:push
       runCommand('npm run db:push', 'Criando/atualizando tabelas do banco');
     } catch (error) {

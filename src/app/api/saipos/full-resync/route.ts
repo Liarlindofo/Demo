@@ -57,7 +57,7 @@ async function fetchSalesFromSaipos(
     });
 
     if (!res.ok) {
-      const txt = await res.text().catch(() => "");
+      await res.text().catch(() => "");
       console.error("❌ Erro na API Saipos:", res.status, res.statusText);
       break;
     }
