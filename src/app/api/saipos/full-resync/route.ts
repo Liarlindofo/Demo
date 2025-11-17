@@ -6,38 +6,25 @@ import { Prisma } from "@prisma/client";
 import { stackServerApp } from "@/stack";
 import { syncStackAuthUser } from "@/lib/stack-auth-sync";
 
-interface SyncRequest {
-  apiId?: string;
-}
-
 const BRT_OFFSET = "-03:00";
 
 /**
  * Calcula o intervalo dos últimos 15 dias em BRT
- * endDate = hoje 00:00
- * startDate = hoje - 14 dias 00:00
  */
 function computeLast15Days(): { start: Date; end: Date } {
   const now = new Date();
-  
-  // Hoje às 00:00:00 BRT
   const todayBRT = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
   todayBRT.setHours(0, 0, 0, 0);
-  
-  // Converter para UTC mantendo o horário BRT
   const endDate = new Date(todayBRT.toISOString().split('T')[0] + 'T00:00:00' + BRT_OFFSET);
-  
-  // 14 dias atrás às 00:00:00 BRT
   const startDate = new Date(endDate);
   startDate.setDate(startDate.getDate() - 14);
-  
   return { start: startDate, end: endDate };
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Busca vendas da API Saipos para um período específico
+ * Busca vendas da API Saipos
  */
 async function fetchSalesFromSaipos(
   apiKey: string,
@@ -48,7 +35,6 @@ async function fetchSalesFromSaipos(
   const limit = 200;
   let offset = 0;
   let totalRequests = 0;
-
   const startISO = startDate.toISOString();
   const endISO = endDate.toISOString();
 
@@ -60,8 +46,6 @@ async function fetchSalesFromSaipos(
     )}&p_limit=${limit}&p_offset=${offset}`;
 
     totalRequests++;
-    console.log(`📥 [Saipos] Página ${totalRequests} (offset=${offset})`);
-
     const res = await fetch(url, {
       method: "GET",
       headers: {
@@ -74,7 +58,7 @@ async function fetchSalesFromSaipos(
 
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
-      console.error("❌ Erro na API Saipos:", res.status, res.statusText, txt.slice(0, 300));
+      console.error("❌ Erro na API Saipos:", res.status, res.statusText);
       break;
     }
 
@@ -83,11 +67,10 @@ async function fetchSalesFromSaipos(
       const text = await res.text();
       pageData = text ? JSON.parse(text) : null;
     } catch (err) {
-      console.error("❌ Erro ao parsear JSON da Saipos:", err);
+      console.error("❌ Erro ao parsear JSON:", err);
       break;
     }
 
-    // Type guards
     const hasDataProperty = (obj: unknown): obj is { data: unknown[] } => {
       if (typeof obj !== 'object' || obj === null) return false;
       const candidate = obj as Record<string, unknown>;
@@ -108,19 +91,12 @@ async function fetchSalesFromSaipos(
       ? pageData.items
       : [];
 
-    if (pageArray.length === 0) {
-      console.log("⚠️ Página vazia, encerrando paginação.");
-      break;
-    }
+    if (pageArray.length === 0) break;
 
     allSales.push(...pageArray);
     offset += limit;
 
-    if (totalRequests >= 100) {
-      console.warn("⚠️ Limite de 100 requisições atingido, parando paginação.");
-      break;
-    }
-
+    if (totalRequests >= 100) break;
     await sleep(800);
   }
 
@@ -135,16 +111,10 @@ function aggregateSalesByDay(sales: unknown[]): Map<string, {
   totalSales: number;
   channels: Record<string, number>;
 }> {
-  const dailyData = new Map<string, {
-    totalOrders: number;
-    totalSales: number;
-    channels: Record<string, number>;
-  }>();
+  const dailyData = new Map();
 
   for (const sale of sales) {
     const saleObj = sale as Record<string, unknown>;
-    
-    // Extrair data
     const saleDate = saleObj.shift_date ?? saleObj.sale_date ?? saleObj.created_at;
     if (!saleDate) continue;
     
@@ -164,7 +134,6 @@ function aggregateSalesByDay(sales: unknown[]): Map<string, {
     const value = Number(saleObj.total_value ?? saleObj.amount_total ?? 0);
     dayData.totalSales += value;
 
-    // Agregar canais
     const channel = String(saleObj.origin_name ?? saleObj.channel ?? "outros").toLowerCase();
     dayData.channels[channel] = (dayData.channels[channel] || 0) + 1;
   }
@@ -172,109 +141,32 @@ function aggregateSalesByDay(sales: unknown[]): Map<string, {
   return dailyData;
 }
 
-export async function POST(request: Request) {
+/**
+ * Sincroniza uma API específica
+ */
+async function syncApi(apiId: string, apiKey: string, storeId: string): Promise<{
+  success: boolean;
+  syncedDays: number;
+  error?: string;
+}> {
   try {
-    // 1) Autenticação
-    const stackUser = await stackServerApp.getUser({ or: "return-null" });
-    if (!stackUser) {
-      return NextResponse.json(
-        { success: false, error: "Usuário não autenticado" },
-        { status: 401 }
-      );
-    }
-
-    const dbUser = await syncStackAuthUser({
-      id: stackUser.id,
-      primaryEmail: stackUser.primaryEmail || undefined,
-      displayName: stackUser.displayName || undefined,
-      profileImageUrl: stackUser.profileImageUrl || undefined,
-      primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
-    });
-    const userId = dbUser.id;
-
-    const body = (await request.json()) as SyncRequest;
-    const apiId = body.apiId?.trim();
-
-    if (!apiId) {
-      return NextResponse.json(
-        { success: false, error: "apiId é obrigatório" },
-        { status: 400 }
-      );
-    }
-
-    // 2) Buscar API Saipos e validar dono
-    const saiposAPI = await db.userAPI.findUnique({
-      where: { id: apiId },
-    });
-
-    if (!saiposAPI || saiposAPI.type !== "saipos") {
-      return NextResponse.json(
-        { success: false, error: "API Saipos não encontrada" },
-        { status: 404 }
-      );
-    }
-
-    if (saiposAPI.userId !== userId) {
-      return NextResponse.json(
-        { success: false, error: "API não pertence ao usuário atual" },
-        { status: 403 }
-      );
-    }
-
-    const apiKey = saiposAPI.apiKey.trim().replace(/^Bearer\s+/i, "");
-    const targetStoreId = saiposAPI.storeId;
-
-    if (!targetStoreId) {
-      return NextResponse.json(
-        { success: false, error: "StoreId não configurado na API" },
-        { status: 400 }
-      );
-    }
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { success: false, error: "API key não encontrada" },
-        { status: 401 }
-      );
-    }
-
-    // 3) Calcular intervalo dos últimos 15 dias
     const { start, end } = computeLast15Days();
 
-    console.log(
-      `🔄 Sincronizando sales_daily para apiId=${apiId}, storeId=${targetStoreId}, período ${start.toISOString()} -> ${end.toISOString()}`
-    );
-
-    // 4) APAGAR todos os registros desta API onde date < start
-    const deletedOld = await db.salesDaily.deleteMany({
-      where: {
-        apiId,
-        date: { lt: start },
-      },
+    // Apagar registros antigos
+    await db.salesDaily.deleteMany({
+      where: { apiId, date: { lt: start } },
     });
-    console.log(`🧹 Removidos ${deletedOld.count} registros antigos de sales_daily`);
 
-    // 5) Buscar vendas da Saipos
+    // Buscar vendas
     const rawSales = await fetchSalesFromSaipos(apiKey, start, end);
-    console.log(`📊 Total de vendas brutas carregadas: ${rawSales.length}`);
-
     if (rawSales.length === 0) {
-      return NextResponse.json({
-        success: true,
-        apiId,
-        storeId: targetStoreId,
-        startDate: start,
-        endDate: end,
-        syncedDays: 0,
-        message: "Nenhuma venda encontrada no período para esta API.",
-      });
+      return { success: true, syncedDays: 0 };
     }
 
-    // 6) Agregar por dia
+    // Agregar por dia
     const dailyAggregated = aggregateSalesByDay(rawSales);
-    console.log(`📊 ${dailyAggregated.size} dias únicos para sincronizar`);
 
-    // 7) Criar loop de datas e fazer UPSERT
+    // UPSERT para cada dia
     const upserts = [];
     const startDate = new Date(start);
     const endDate = new Date(end);
@@ -292,14 +184,11 @@ export async function POST(request: Request) {
       upserts.push(
         db.salesDaily.upsert({
           where: {
-            sales_daily_api_date_unique: {
-              apiId,
-              date,
-            },
+            sales_daily_api_date_unique: { apiId, date },
           },
           create: {
             apiId,
-            storeId: targetStoreId,
+            storeId,
             date,
             totalOrders: dayData.totalOrders,
             totalSales: new Prisma.Decimal(dayData.totalSales),
@@ -315,18 +204,95 @@ export async function POST(request: Request) {
     }
 
     await db.$transaction(upserts);
-    console.log(`✅ ${upserts.length} dias sincronizados em sales_daily`);
+    return { success: true, syncedDays: upserts.length };
+  } catch (error) {
+    return {
+      success: false,
+      syncedDays: 0,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
+ * Rota para sincronizar TODAS as APIs Saipos do usuário autenticado
+ */
+export async function POST() {
+  try {
+    const stackUser = await stackServerApp.getUser({ or: "return-null" });
+    if (!stackUser) {
+      return NextResponse.json(
+        { success: false, error: "Usuário não autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const dbUser = await syncStackAuthUser({
+      id: stackUser.id,
+      primaryEmail: stackUser.primaryEmail || undefined,
+      displayName: stackUser.displayName || undefined,
+      profileImageUrl: stackUser.profileImageUrl || undefined,
+      primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
+    });
+    const userId = dbUser.id;
+
+    // Buscar todas as APIs Saipos do usuário
+    const apis = await db.userAPI.findMany({
+      where: { userId, type: "saipos" },
+    });
+
+    if (apis.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: "Nenhuma API Saipos encontrada",
+        syncedApis: 0,
+        results: [],
+      });
+    }
+
+    console.log(`🔄 Full-resync: ${apis.length} APIs Saipos`);
+
+    const results = [];
+    for (const api of apis) {
+      if (!api.storeId || !api.apiKey) {
+        results.push({
+          apiId: api.id,
+          apiName: api.name,
+          success: false,
+          error: "StoreId ou API key não configurado",
+        });
+        continue;
+      }
+
+      const apiKey = api.apiKey.trim().replace(/^Bearer\s+/i, "");
+      const result = await syncApi(api.id, apiKey, api.storeId);
+
+      results.push({
+        apiId: api.id,
+        apiName: api.name,
+        ...result,
+      });
+
+      console.log(
+        result.success
+          ? `✅ ${api.name}: ${result.syncedDays} dias`
+          : `❌ ${api.name}: ${result.error}`
+      );
+    }
+
+    const successCount = results.filter((r) => r.success).length;
+    const totalDays = results.reduce((sum, r) => sum + (r.syncedDays || 0), 0);
 
     return NextResponse.json({
       success: true,
-      apiId,
-      storeId: targetStoreId,
-      startDate: start,
-      endDate: end,
-      syncedDays: upserts.length,
+      message: `Sincronização concluída: ${successCount}/${apis.length} APIs`,
+      syncedApis: successCount,
+      totalApis: apis.length,
+      totalDays,
+      results,
     });
   } catch (error) {
-    console.error("❌ Erro na sincronização Saipos:", error);
+    console.error("❌ Erro no full-resync:", error);
     return NextResponse.json(
       {
         success: false,
@@ -335,4 +301,8 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+export async function GET() {
+  return POST();
 }

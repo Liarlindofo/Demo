@@ -29,11 +29,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "missing params" }, { status: 400 });
     }
 
-    console.log("⚠️ UI storeId:", storeIdRaw);
-    console.log("⚠️ userId:", userId);
-
-    // Validar que o storeId pertence ao usuário usando user_apis como fonte da verdade
-    const store = await db.userAPI.findFirst({
+    // Validar que o storeId pertence ao usuário usando user_apis
+    const api = await db.userAPI.findFirst({
       where: {
         storeId: storeIdRaw,
         userId: userId,
@@ -41,96 +38,44 @@ export async function GET(req: Request) {
       },
     });
 
-    if (!store) {
-      console.error("❌ StoreId não encontrado em user_apis para este usuário");
-      // Buscar storeIds disponíveis para debug
-      const availableStores = await db.userAPI.findMany({
+    if (!api) {
+      const availableApis = await db.userAPI.findMany({
         where: { userId, type: "saipos" },
         select: { storeId: true, name: true },
       });
       return NextResponse.json({ 
         success: false,
         error: `StoreId "${storeIdRaw}" não pertence ao usuário.`,
-        available: availableStores.map(s => ({ storeId: s.storeId, name: s.name }))
+        available: availableApis.map(a => ({ storeId: a.storeId, name: a.name }))
       }, { status: 403 });
     }
 
-    console.log("✅ StoreId validado:", { storeId: store.storeId, apiName: store.name });
-
-    // Usar storeId exato da validação
-    const targetStoreId = storeIdRaw;
-
-    // janela UTC-3 completa
+    // Período em BRT
     const startDate = new Date(`${start}T00:00:00-03:00`);
     const endDate = new Date(`${end}T23:59:59-03:00`);
 
-    console.log("⚠️ Período:", { start, end, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
-
+    // Buscar dados de sales_daily usando apiId
     const where = {
-      userId,
+      apiId: api.id,
       date: { gte: startDate, lte: endDate },
-      storeId: targetStoreId,
     };
 
-    console.log("⚠️ Where aplicado:", JSON.stringify(where, null, 2));
-
-    // Verificar quantos registros existem antes do filtro
-    const totalCount = await db.salesDaily.count({
-      where: { userId },
-    });
-    const countWithStoreId = await db.salesDaily.count({
-      where: { userId, storeId: targetStoreId },
-    });
-    const countWithDateRange = await db.salesDaily.count({
-      where: { userId, date: { gte: startDate, lte: endDate } },
-    });
-    console.log("⚠️ Contagens de debug:");
-    console.log("  - Total registros para userId:", totalCount);
-    console.log("  - Registros com storeId normalizado:", countWithStoreId);
-    console.log("  - Registros no período:", countWithDateRange);
-
-    // Série diária (para gráficos / tabela)
+    // Série diária (para gráficos)
     const rows = await db.salesDaily.findMany({
       where,
       orderBy: { date: "asc" },
     });
 
-    console.log("⚠️ Registros encontrados após filtro completo:", rows.length);
-    if (rows.length > 0) {
-      console.log("⚠️ Primeiro registro:", {
-        storeId: rows[0].storeId,
-        date: rows[0].date,
-        totalOrders: rows[0].totalOrders,
-      });
-    }
-
-    // Agregados dos cards
-    // OBS: Prisma aggregate com Decimal -> converter para Number
+    // Agregados para os cards
     const agg = await db.salesDaily.aggregate({
       where,
       _sum: {
         totalOrders: true,
-        canceledOrders: true,
         totalSales: true,
-        qtdDelivery: true,
-        qtdBalcao: true,
-        qtdIFood: true,
-        qtdTelefone: true,
-        qtdCentralPedidos: true,
-        qtdDeliveryDireto: true,
-        totalItems: true,
-        totalDeliveryFee: true,
-        totalAdditions: true,
-        totalDiscounts: true,
-      },
-      _avg: {
-        averageTicketDelivery: true,
-        averageTicketBalcao: true,
       },
     });
 
     const sum = agg._sum;
-    const avg = agg._avg;
 
     const toNum = (v: unknown): number => {
       if (v === null || v === undefined) return 0;
@@ -139,43 +84,33 @@ export async function GET(req: Request) {
       return Number.isNaN(num) ? 0 : num;
     };
 
+    // Extrair canais agregados
+    const channelsAggregated: Record<string, number> = {};
+    rows.forEach((row) => {
+      if (row.channels && typeof row.channels === 'object') {
+        const channels = row.channels as Record<string, unknown>;
+        Object.keys(channels).forEach((channel) => {
+          const count = Number(channels[channel]) || 0;
+          channelsAggregated[channel] = (channelsAggregated[channel] || 0) + count;
+        });
+      }
+    });
+
     const payload = {
       cards: {
         totalOrders: toNum(sum.totalOrders),
-        canceledOrders: toNum(sum.canceledOrders),
         totalSales: toNum(sum.totalSales),
-        averageTicketDelivery: toNum(avg.averageTicketDelivery),
-        averageTicketBalcao: toNum(avg.averageTicketBalcao),
-        qtdDelivery: toNum(sum.qtdDelivery),
-        qtdBalcao: toNum(sum.qtdBalcao),
-        qtdIFood: toNum(sum.qtdIFood),
-        qtdTelefone: toNum(sum.qtdTelefone),
-        qtdCentralPedidos: toNum(sum.qtdCentralPedidos),
-        qtdDeliveryDireto: toNum(sum.qtdDeliveryDireto),
-        totalItems: toNum(sum.totalItems),
-        totalDeliveryFee: toNum(sum.totalDeliveryFee),
-        totalAdditions: toNum(sum.totalAdditions),
-        totalDiscounts: toNum(sum.totalDiscounts),
+        // Canais agregados
+        channels: channelsAggregated,
       },
       series: rows.map((r) => ({
         date: r.date,
         totalOrders: r.totalOrders,
-        canceledOrders: r.canceledOrders ?? 0,
         totalSales: Number(r.totalSales),
-        averageTicketDelivery: r.averageTicketDelivery ? Number(r.averageTicketDelivery) : 0,
-        averageTicketBalcao: r.averageTicketBalcao ? Number(r.averageTicketBalcao) : 0,
-        qtdDelivery: r.qtdDelivery ?? 0,
-        qtdBalcao: r.qtdBalcao ?? 0,
-        qtdIFood: r.qtdIFood ?? 0,
-        qtdTelefone: r.qtdTelefone ?? 0,
-        qtdCentralPedidos: r.qtdCentralPedidos ?? 0,
-        qtdDeliveryDireto: r.qtdDeliveryDireto ?? 0,
-        totalItems: r.totalItems ?? 0,
-        totalDeliveryFee: r.totalDeliveryFee ? Number(r.totalDeliveryFee) : 0,
-        totalAdditions: r.totalAdditions ? Number(r.totalAdditions) : 0,
-        totalDiscounts: r.totalDiscounts ? Number(r.totalDiscounts) : 0,
+        channels: (r.channels && typeof r.channels === 'object') 
+          ? (r.channels as Record<string, unknown>)
+          : {},
       })),
-      debug: { where, count: rows.length },
     };
 
     return NextResponse.json({ success: true, data: payload });
@@ -184,4 +119,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: String(e) }, { status: 500 });
   }
 }
-
