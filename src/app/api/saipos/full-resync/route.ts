@@ -252,13 +252,20 @@ export async function POST() {
 
     console.log(`🔄 Full-resync: ${apis.length} APIs Saipos`);
 
-    const results = [];
+    const results: Array<{
+      apiId: string;
+      apiName: string;
+      success: boolean;
+      syncedDays: number;
+      error?: string;
+    }> = [];
     for (const api of apis) {
       if (!api.storeId || !api.apiKey) {
         results.push({
           apiId: api.id,
           apiName: api.name,
           success: false,
+          syncedDays: 0,
           error: "StoreId ou API key não configurado",
         });
         continue;
