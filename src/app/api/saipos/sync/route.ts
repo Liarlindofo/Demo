@@ -100,7 +100,6 @@ export async function POST(request: Request) {
 
     const apiKey = saiposAPI.apiKey;
     const targetStoreId = saiposAPI.storeId;
-    const apiUserId = saiposAPI.userId;
 
     if (!targetStoreId) {
       return NextResponse.json(

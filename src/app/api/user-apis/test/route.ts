@@ -47,18 +47,9 @@ export async function POST(request: NextRequest) {
       const { db } = await import('@/lib/db')
       const storeId = api.storeId
       
-      // Obter userId do usuário autenticado
-      const dbUser = await syncStackAuthUser({
-        id: stackUser.id,
-        primaryEmail: stackUser.primaryEmail || undefined,
-        displayName: stackUser.displayName || undefined,
-        profileImageUrl: stackUser.profileImageUrl || undefined,
-        primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
-      })
-      const userId = dbUser.id
-      
+      // Verificar se já existem dados para esta API
       const existingData = await db.salesDaily.findFirst({
-        where: { userId, storeId },
+        where: { apiId: api.id, storeId },
       })
       
       // Se não houver dados, fazer carregamento inicial em background (não bloquear resposta)
