@@ -296,7 +296,7 @@ export async function POST(request: Request) {
           totalDiscounts: new Prisma.Decimal(
             data.totalDiscounts || 0
           ),
-          channels: data.channels as unknown as Prisma.JsonValue,
+          channels: data.channels as Prisma.InputJsonValue,
         },
         update: {
           totalOrders: data.totalOrders,
@@ -324,7 +324,7 @@ export async function POST(request: Request) {
           totalDiscounts: new Prisma.Decimal(
             data.totalDiscounts || 0
           ),
-          channels: data.channels as unknown as Prisma.JsonValue,
+          channels: data.channels as Prisma.InputJsonValue,
           updatedAt: new Date(),
         },
       });
