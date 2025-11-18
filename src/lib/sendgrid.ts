@@ -221,7 +221,7 @@ export class EmailService {
                   Sua conta foi criada com sucesso! Agora você pode acessar todas as funcionalidades da nossa plataforma.
                 </p>
                 <div style="text-align: center; margin: 30px 0;">
-                  <a href="${process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'production' ? 'https://platefull.com.br' : 'http://localhost:3000')}/dashboard" 
+                  <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://platefull.com.br'}/dashboard" 
                      style="background: #001F05; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">
                     Acessar Dashboard
                   </a>

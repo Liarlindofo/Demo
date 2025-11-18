@@ -105,6 +105,7 @@ function aggregateSalesByDay(sales: unknown[]): Map<string, {
   channels: Record<string, number>;
 }> {
   const dailyData = new Map();
+  let sampleLogged = 0;
 
   for (const sale of sales) {
     const saleObj = sale as Record<string, unknown>;
@@ -124,8 +125,28 @@ function aggregateSalesByDay(sales: unknown[]): Map<string, {
     const dayData = dailyData.get(dateKey)!;
     dayData.totalOrders++;
     
-    const value = Number(saleObj.total_value ?? saleObj.amount_total ?? 0);
+    // Buscar valor da venda em vários campos possíveis
+    const value = Number(
+      saleObj.total_value ?? 
+      saleObj.amount_total ?? 
+      saleObj.total ?? 
+      saleObj.valor_total ?? 
+      saleObj.amount ?? 
+      0
+    );
     dayData.totalSales += value;
+
+    // Log de amostra para debug (primeiras 3 vendas)
+    if (sampleLogged < 3) {
+      console.log(`📊 Amostra venda ${sampleLogged + 1}:`, {
+        date: dateKey,
+        total_value: saleObj.total_value,
+        amount_total: saleObj.amount_total,
+        total: saleObj.total,
+        valorExtraido: value,
+      });
+      sampleLogged++;
+    }
 
     const channel = String(saleObj.origin_name ?? saleObj.channel ?? "outros").toLowerCase();
     dayData.channels[channel] = (dayData.channels[channel] || 0) + 1;
@@ -250,6 +271,9 @@ export async function POST(request: Request) {
     }
 
     const upserts = [];
+    let totalSalesSum = 0;
+    let totalOrdersSum = 0;
+
     for (const date of dates) {
       const dateKey = date.toISOString().split("T")[0];
       const dayData = dailyAggregated.get(dateKey) || {
@@ -257,6 +281,18 @@ export async function POST(request: Request) {
         totalSales: 0,
         channels: {},
       };
+
+      totalSalesSum += dayData.totalSales;
+      totalOrdersSum += dayData.totalOrders;
+
+      // Log dos primeiros 3 dias para debug
+      if (upserts.length < 3) {
+        console.log(`📊 Dia ${dateKey}:`, {
+          totalOrders: dayData.totalOrders,
+          totalSales: dayData.totalSales,
+          channels: dayData.channels,
+        });
+      }
 
       upserts.push(
         db.salesDaily.upsert({
@@ -285,6 +321,7 @@ export async function POST(request: Request) {
 
     await db.$transaction(upserts);
     console.log(`✅ ${upserts.length} dias sincronizados em sales_daily`);
+    console.log(`📊 Totais agregados: ${totalOrdersSum} pedidos, R$ ${totalSalesSum.toFixed(2)}`);
 
     return NextResponse.json({
       success: true,

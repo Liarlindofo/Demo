@@ -108,11 +108,24 @@ export async function GET(req: Request) {
         date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date,
         totalOrders: r.totalOrders,
         totalSales: r.totalSales,
+        averageTicket: r.totalOrders > 0 ? r.totalSales / r.totalOrders : 0,
         channels: (r.channels && typeof r.channels === 'object') 
           ? (r.channels as Record<string, unknown>)
           : {},
       })),
     };
+
+    console.log("📊 Payload final:", {
+      totalOrders,
+      totalSales,
+      averageTicket: totalOrders > 0 ? totalSales / totalOrders : 0,
+      seriesCount: rows.length,
+      firstDay: rows.length > 0 ? {
+        date: rows[0].date,
+        totalOrders: rows[0].totalOrders,
+        totalSales: rows[0].totalSales,
+      } : null,
+    });
 
     return NextResponse.json({ success: true, data: payload });
   } catch (e) {

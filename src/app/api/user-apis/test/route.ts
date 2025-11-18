@@ -57,9 +57,7 @@ export async function POST(request: NextRequest) {
         console.log(`🔄 Iniciando carregamento inicial de 90 dias para ${storeId}...`)
         
         // Determinar URL base baseado no ambiente
-        const baseUrl = process.env.NODE_ENV === "production"
-          ? "https://platefull.com.br"
-          : "http://localhost:3000";
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://platefull.com.br";
         
         // Fazer em background sem bloquear a resposta
         fetch(`${baseUrl}/api/saipos/sync`, {

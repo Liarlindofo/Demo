@@ -115,7 +115,15 @@ function aggregateSalesByDay(sales: unknown[]): Map<string, {
     const dayData = dailyData.get(dateKey)!;
     dayData.totalOrders++;
     
-    const value = Number(saleObj.total_value ?? saleObj.amount_total ?? 0);
+    // Buscar valor da venda em vários campos possíveis
+    const value = Number(
+      saleObj.total_value ?? 
+      saleObj.amount_total ?? 
+      saleObj.total ?? 
+      saleObj.valor_total ?? 
+      saleObj.amount ?? 
+      0
+    );
     dayData.totalSales += value;
 
     const channel = String(saleObj.origin_name ?? saleObj.channel ?? "outros").toLowerCase();
