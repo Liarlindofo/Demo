@@ -29,6 +29,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "missing params" }, { status: 400 });
     }
 
+    console.log("📊 Dashboard metrics:", { storeIdRaw, start, end, userId });
+
     // Validar que o storeId pertence ao usuário usando user_apis
     const api = await db.userAPI.findFirst({
       where: {
@@ -50,9 +52,11 @@ export async function GET(req: Request) {
       }, { status: 403 });
     }
 
-    // Período em BRT
-    const startDate = new Date(`${start}T00:00:00-03:00`);
-    const endDate = new Date(`${end}T23:59:59-03:00`);
+    console.log("✅ API validada:", { apiId: api.id, name: api.name });
+
+    // Período em UTC (normalizado)
+    const startDate = new Date(`${start}T00:00:00.000Z`);
+    const endDate = new Date(`${end}T23:59:59.999Z`);
 
     // Buscar dados de sales_daily usando apiId
     const where = {
@@ -63,30 +67,27 @@ export async function GET(req: Request) {
     // Série diária (para gráficos)
     const rows = await db.salesDaily.findMany({
       where,
+      select: {
+        date: true,
+        totalOrders: true,
+        totalSales: true,
+        channels: true,
+      },
       orderBy: { date: "asc" },
     });
 
+    console.log(`📊 Registros encontrados: ${rows.length}`);
+
     // Agregados para os cards
-    const agg = await db.salesDaily.aggregate({
-      where,
-      _sum: {
-        totalOrders: true,
-        totalSales: true,
-      },
-    });
-
-    const sum = agg._sum;
-
-    const toNum = (v: unknown): number => {
-      if (v === null || v === undefined) return 0;
-      if (typeof v === "number") return v;
-      const num = Number(v);
-      return Number.isNaN(num) ? 0 : num;
-    };
-
-    // Extrair canais agregados
+    let totalOrders = 0;
+    let totalSales = 0;
     const channelsAggregated: Record<string, number> = {};
+
     rows.forEach((row) => {
+      totalOrders += row.totalOrders;
+      totalSales += row.totalSales;
+
+      // Agregar canais
       if (row.channels && typeof row.channels === 'object') {
         const channels = row.channels as Record<string, unknown>;
         Object.keys(channels).forEach((channel) => {
@@ -98,15 +99,15 @@ export async function GET(req: Request) {
 
     const payload = {
       cards: {
-        totalOrders: toNum(sum.totalOrders),
-        totalSales: toNum(sum.totalSales),
-        // Canais agregados
+        totalOrders,
+        totalSales,
+        averageTicket: totalOrders > 0 ? totalSales / totalOrders : 0,
         channels: channelsAggregated,
       },
       series: rows.map((r) => ({
-        date: r.date,
+        date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date,
         totalOrders: r.totalOrders,
-        totalSales: Number(r.totalSales),
+        totalSales: r.totalSales,
         channels: (r.channels && typeof r.channels === 'object') 
           ? (r.channels as Record<string, unknown>)
           : {},
@@ -115,7 +116,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ success: true, data: payload });
   } catch (e) {
-    console.error("dashboard metrics error:", e);
+    console.error("❌ Dashboard metrics error:", e);
     return NextResponse.json({ success: false, error: String(e) }, { status: 500 });
   }
 }

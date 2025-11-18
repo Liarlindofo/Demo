@@ -5,12 +5,6 @@ import { db } from "@/lib/db";
 import { stackServerApp } from "@/stack";
 import { syncStackAuthUser } from "@/lib/stack-auth-sync";
 
-interface SyncRequest {
-  apiId: string;
-  storeId?: string;
-  days?: number;
-}
-
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -25,7 +19,6 @@ async function fetchSalesFromSaipos(
   const limit = 200;
   let offset = 0;
   let totalRequests = 0;
-
   const startISO = startDate.toISOString();
   const endISO = endDate.toISOString();
 
@@ -37,8 +30,6 @@ async function fetchSalesFromSaipos(
     )}&p_limit=${limit}&p_offset=${offset}`;
 
     totalRequests++;
-    console.log(`📥 [Saipos] Página ${totalRequests} (offset=${offset})`);
-
     const res = await fetch(url, {
       method: "GET",
       headers: {
@@ -134,114 +125,35 @@ function aggregateSalesByDay(sales: unknown[]): Map<string, {
   return dailyData;
 }
 
-export async function POST(request: Request) {
+/**
+ * Sincroniza uma API específica
+ */
+async function syncApi(apiId: string, apiKey: string, storeId: string, days = 15): Promise<{
+  success: boolean;
+  syncedDays: number;
+  error?: string;
+}> {
   try {
-    // 1) Autenticação
-    const stackUser = await stackServerApp.getUser({ or: "return-null" });
-    if (!stackUser) {
-      return NextResponse.json(
-        { success: false, error: "Usuário não autenticado" },
-        { status: 401 }
-      );
-    }
-
-    const dbUser = await syncStackAuthUser({
-      id: stackUser.id,
-      primaryEmail: stackUser.primaryEmail || undefined,
-      displayName: stackUser.displayName || undefined,
-      profileImageUrl: stackUser.profileImageUrl || undefined,
-      primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
-    });
-    const userId = dbUser.id;
-
-    const body = (await request.json()) as SyncRequest;
-    const apiId = body.apiId?.trim();
-    const days = body.days && body.days > 0 ? body.days : 15;
-
-    if (!apiId) {
-      return NextResponse.json(
-        { success: false, error: "apiId é obrigatório" },
-        { status: 400 }
-      );
-    }
-
-    // 2) Buscar API Saipos e validar dono
-    const saiposAPI = await db.userAPI.findUnique({
-      where: { id: apiId },
-    });
-
-    if (!saiposAPI) {
-      return NextResponse.json(
-        { success: false, error: "API não encontrada" },
-        { status: 404 }
-      );
-    }
-
-    if (saiposAPI.type !== "saipos") {
-      return NextResponse.json(
-        { success: false, error: "API não é do tipo Saipos" },
-        { status: 400 }
-      );
-    }
-
-    if (saiposAPI.userId !== userId) {
-      return NextResponse.json(
-        { success: false, error: "API não pertence ao usuário atual" },
-        { status: 403 }
-      );
-    }
-
-    const apiKey = saiposAPI.apiKey.trim().replace(/^Bearer\s+/i, "");
-    const resolvedStoreId = body.storeId || saiposAPI.storeId || saiposAPI.name;
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { success: false, error: "API key não encontrada" },
-        { status: 401 }
-      );
-    }
-
-    // 3) Calcular intervalo dos últimos N dias
     const today = new Date();
     const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
     const startDate = new Date(endDate);
     startDate.setDate(startDate.getDate() - (days - 1));
 
-    console.log(
-      `🔄 Sincronizando ${days} dias para apiId=${apiId}, storeId=${resolvedStoreId}`
-    );
-    console.log(`📅 Período: ${startDate.toISOString()} -> ${endDate.toISOString()}`);
-
-    // 4) APAGAR registros antigos desta API (antes do startDate)
-    const deletedOld = await db.salesDaily.deleteMany({
-      where: {
-        apiId,
-        date: { lt: startDate },
-      },
+    // Apagar registros antigos
+    await db.salesDaily.deleteMany({
+      where: { apiId, date: { lt: startDate } },
     });
-    console.log(`🧹 Removidos ${deletedOld.count} registros antigos`);
 
-    // 5) Buscar vendas da Saipos
+    // Buscar vendas
     const rawSales = await fetchSalesFromSaipos(apiKey, startDate, endDate);
-    console.log(`📊 Total de vendas brutas carregadas: ${rawSales.length}`);
-
     if (rawSales.length === 0) {
-      return NextResponse.json({
-        success: true,
-        apiId,
-        storeId: resolvedStoreId,
-        startDate,
-        endDate,
-        daysSynced: 0,
-        message: "Nenhuma venda encontrada no período para esta API.",
-      });
+      return { success: true, syncedDays: 0 };
     }
 
-    // 6) Agregar por dia
+    // Agregar por dia
     const dailyAggregated = aggregateSalesByDay(rawSales);
-    console.log(`📊 ${dailyAggregated.size} dias únicos para sincronizar`);
 
-    // 7) Loop de datas e UPSERT
+    // Loop de datas e UPSERT
     const dates = [];
     const currentDate = new Date(startDate);
     while (currentDate <= endDate) {
@@ -261,14 +173,11 @@ export async function POST(request: Request) {
       upserts.push(
         db.salesDaily.upsert({
           where: {
-            sales_daily_api_date_unique: {
-              apiId,
-              date,
-            },
+            sales_daily_api_date_unique: { apiId, date },
           },
           create: {
             apiId,
-            storeId: resolvedStoreId,
+            storeId,
             date,
             totalOrders: dayData.totalOrders,
             totalSales: dayData.totalSales,
@@ -284,24 +193,98 @@ export async function POST(request: Request) {
     }
 
     await db.$transaction(upserts);
-    console.log(`✅ ${upserts.length} dias sincronizados em sales_daily`);
+    return { success: true, syncedDays: upserts.length };
+  } catch (error) {
+    return {
+      success: false,
+      syncedDays: 0,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
+ * Rota para sincronizar TODAS as APIs Saipos do usuário autenticado
+ */
+export async function POST() {
+  try {
+    const stackUser = await stackServerApp.getUser({ or: "return-null" });
+    if (!stackUser) {
+      return NextResponse.json(
+        { success: false, error: "Usuário não autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const dbUser = await syncStackAuthUser({
+      id: stackUser.id,
+      primaryEmail: stackUser.primaryEmail || undefined,
+      displayName: stackUser.displayName || undefined,
+      profileImageUrl: stackUser.profileImageUrl || undefined,
+      primaryEmailVerified: stackUser.primaryEmailVerified ? new Date() : null,
+    });
+    const userId = dbUser.id;
+
+    // Buscar todas as APIs Saipos do usuário
+    const apis = await db.userAPI.findMany({
+      where: { userId, type: "saipos" },
+    });
+
+    if (apis.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: "Nenhuma API Saipos encontrada",
+        apisSynced: [],
+        days: 15,
+      });
+    }
+
+    console.log(`🔄 Sync-all: ${apis.length} APIs Saipos`);
+
+    const apisSynced = [];
+    for (const api of apis) {
+      if (!api.apiKey) {
+        console.log(`⚠️  API ${api.name} sem API key, pulando...`);
+        continue;
+      }
+
+      const apiKey = api.apiKey.trim().replace(/^Bearer\s+/i, "");
+      const storeId = api.storeId || api.name;
+
+      console.log(`📦 Sincronizando API: ${api.name} (${api.id})`);
+      const result = await syncApi(api.id, apiKey, storeId, 15);
+
+      if (result.success) {
+        apisSynced.push({
+          apiId: api.id,
+          name: api.name,
+          syncedDays: result.syncedDays,
+        });
+        console.log(`✅ ${api.name}: ${result.syncedDays} dias`);
+      } else {
+        console.log(`❌ ${api.name}: ${result.error}`);
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      apiId,
-      storeId: resolvedStoreId,
-      startDate,
-      endDate,
-      daysSynced: upserts.length,
+      message: `Sincronização concluída: ${apisSynced.length}/${apis.length} APIs`,
+      apisSynced,
+      days: 15,
     });
   } catch (error) {
-    console.error("❌ Erro na sincronização Saipos:", error);
+    console.error("❌ Erro no sync-all:", error);
     return NextResponse.json(
       {
         success: false,
-        error: "Erro ao sincronizar dados",
+        error: "Erro ao sincronizar APIs",
       },
       { status: 500 }
     );
   }
 }
+
+export async function GET() {
+  return POST();
+}
+
