@@ -193,7 +193,7 @@ export async function aggregateSalesData(
             totalSales,
             totalOrders,
             uniqueCustomers,
-            channels: null, // TODO: extrair canais se necessário
+            // channels não precisa ser definido (é opcional)
           },
           update: {
             totalSales,
