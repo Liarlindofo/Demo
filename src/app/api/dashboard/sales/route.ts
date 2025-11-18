@@ -161,6 +161,7 @@ export async function GET(request: Request) {
           date: true,
           totalSales: true,
           totalOrders: true,
+          uniqueCustomers: true,
         },
         orderBy: {
           date: "asc",
@@ -236,11 +237,12 @@ export async function GET(request: Request) {
                     lte: recentDate,
                   },
                 },
-                select: {
-                  date: true,
-                  totalSales: true,
-                  totalOrders: true,
-                },
+        select: {
+          date: true,
+          totalSales: true,
+          totalOrders: true,
+          uniqueCustomers: true,
+        },
                 orderBy: {
                   date: "asc",
                 },
@@ -306,7 +308,7 @@ export async function GET(request: Request) {
           totalSales: totalSalesNum,
           totalOrders: item.totalOrders || 0,
           averageTicket: averageTicketNum,
-          uniqueCustomers: 0,
+          uniqueCustomers: item.uniqueCustomers || 0,
           channels: null,
         };
       } catch (error) {

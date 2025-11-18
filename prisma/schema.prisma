@@ -127,16 +127,17 @@ model StackSession {
 }
 
 model SalesDaily {
-  id          String   @id @default(cuid())
-  apiId       String
-  api         UserAPI  @relation(fields: [apiId], references: [id])
-  storeId     String
-  date        DateTime
-  totalOrders Int
-  totalSales  Float
-  channels    Json?
+  id              String   @id @default(cuid())
+  apiId           String
+  api             UserAPI  @relation(fields: [apiId], references: [id])
+  storeId         String
+  date            DateTime
+  totalOrders     Int
+  totalSales      Float
+  uniqueCustomers Int      @default(0)
+  channels        Json?
 
-  createdAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
 
   @@unique([apiId, date], name: "sales_daily_api_date_unique")
   @@index([apiId, date])

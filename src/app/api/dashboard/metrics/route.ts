@@ -71,6 +71,7 @@ export async function GET(req: Request) {
         date: true,
         totalOrders: true,
         totalSales: true,
+        uniqueCustomers: true,
         channels: true,
       },
       orderBy: { date: "asc" },
@@ -81,11 +82,13 @@ export async function GET(req: Request) {
     // Agregados para os cards
     let totalOrders = 0;
     let totalSales = 0;
+    let totalUniqueCustomers = 0;
     const channelsAggregated: Record<string, number> = {};
 
     rows.forEach((row) => {
       totalOrders += row.totalOrders;
       totalSales += row.totalSales;
+      totalUniqueCustomers += (row.uniqueCustomers || 0);
 
       // Agregar canais
       if (row.channels && typeof row.channels === 'object') {
@@ -102,6 +105,7 @@ export async function GET(req: Request) {
         totalOrders,
         totalSales,
         averageTicket: totalOrders > 0 ? totalSales / totalOrders : 0,
+        uniqueCustomers: totalUniqueCustomers,
         channels: channelsAggregated,
       },
       series: rows.map((r) => ({
@@ -109,6 +113,7 @@ export async function GET(req: Request) {
         totalOrders: r.totalOrders,
         totalSales: r.totalSales,
         averageTicket: r.totalOrders > 0 ? r.totalSales / r.totalOrders : 0,
+        uniqueCustomers: r.uniqueCustomers || 0,
         channels: (r.channels && typeof r.channels === 'object') 
           ? (r.channels as Record<string, unknown>)
           : {},

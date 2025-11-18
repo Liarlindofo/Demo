@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { aggregateSalesData } from '@/lib/sales-aggregation'
 
 type SyncParams = {
   apiId: string
@@ -469,6 +470,26 @@ export async function syncSaiposForApi({
         errorsCount: errors,
       },
     })
+
+    // Agregar dados após sincronização bem-sucedida
+    console.log('📊 Iniciando agregação de dados após sincronização...')
+    try {
+      const aggregationResult = await aggregateSalesData(
+        apiId,
+        effectiveStoreId,
+        start,
+        end
+      )
+      
+      console.log('✅ Agregação concluída:', aggregationResult)
+      
+      if (!aggregationResult.success) {
+        console.warn('⚠️ Agregação teve erros:', aggregationResult.errors)
+      }
+    } catch (aggregationError) {
+      console.error('❌ Erro na agregação (não fatal):', aggregationError)
+      // Não falhar a sincronização por causa de erro na agregação
+    }
 
     return {
       success: true,
