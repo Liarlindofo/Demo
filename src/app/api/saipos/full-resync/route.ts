@@ -191,13 +191,13 @@ async function syncApi(apiId: string, apiKey: string, storeId: string): Promise<
             storeId,
             date,
             totalOrders: dayData.totalOrders,
-            totalSales: new Prisma.Decimal(dayData.totalSales),
-            channels: dayData.channels as Prisma.InputJsonValue,
+            totalSales: dayData.totalSales,
+            channels: dayData.channels,
           },
           update: {
             totalOrders: dayData.totalOrders,
-            totalSales: new Prisma.Decimal(dayData.totalSales),
-            channels: dayData.channels as Prisma.InputJsonValue,
+            totalSales: dayData.totalSales,
+            channels: dayData.channels,
           },
         })
       );

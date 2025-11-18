@@ -284,16 +284,11 @@ export async function GET(request: Request) {
           dateStr = typeof item.date === 'string' ? item.date : new Date(item.date).toISOString().split("T")[0];
         }
         
-        // Converter Decimal para Number - método mais robusto
+        // Converter totalSales para Number
         let totalSalesNum: number = 0;
         try {
           if (item.totalSales !== null && item.totalSales !== undefined) {
-            // Verificar se é Prisma.Decimal
-            if (item.totalSales && typeof item.totalSales === 'object' && 'toNumber' in item.totalSales) {
-              totalSalesNum = (item.totalSales as Prisma.Decimal).toNumber();
-            } else if (typeof item.totalSales === 'string') {
-              totalSalesNum = parseFloat(item.totalSales) || 0;
-            } else if (typeof item.totalSales === 'number') {
+            if (typeof item.totalSales === 'number') {
               totalSalesNum = item.totalSales;
             } else {
               totalSalesNum = Number(item.totalSales) || 0;

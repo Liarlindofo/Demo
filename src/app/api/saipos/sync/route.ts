@@ -270,7 +270,7 @@ export async function POST(request: Request) {
           storeId: targetStoreId,
           date,
           totalOrders: data.totalOrders,
-          totalSales: new Prisma.Decimal(data.totalSales),
+          totalSales: data.totalSales,
           channels: {
             ifood: data.qtdIFood,
             telefone: data.qtdTelefone,
@@ -285,11 +285,11 @@ export async function POST(request: Request) {
             totalDiscounts: data.totalDiscounts || 0,
             averageTicketDelivery: data.averageTicketDelivery || 0,
             averageTicketBalcao: data.averageTicketBalcao || 0,
-          } as Prisma.InputJsonValue,
+          },
         },
         update: {
           totalOrders: data.totalOrders,
-          totalSales: new Prisma.Decimal(data.totalSales),
+          totalSales: data.totalSales,
           channels: {
             ifood: data.qtdIFood,
             telefone: data.qtdTelefone,
@@ -304,7 +304,7 @@ export async function POST(request: Request) {
             totalDiscounts: data.totalDiscounts || 0,
             averageTicketDelivery: data.averageTicketDelivery || 0,
             averageTicketBalcao: data.averageTicketBalcao || 0,
-          } as Prisma.InputJsonValue,
+          },
         },
       });
     });
