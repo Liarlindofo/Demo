@@ -3,7 +3,6 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { normalizeSalesResponse, type SaiposRawSale } from "@/lib/saipos-api";
-import { Prisma } from "@prisma/client";
 import { stackServerApp } from "@/stack";
 import { syncStackAuthUser } from "@/lib/stack-auth-sync";
 

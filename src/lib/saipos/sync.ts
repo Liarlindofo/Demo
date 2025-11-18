@@ -54,7 +54,7 @@ function toISODateOnly(date: Date): string {
   return date.toISOString().split('T')[0]
 }
 
-function parseTotalAmount(record: SaiposSaleRecord): Prisma.Decimal | null {
+function parseTotalAmount(record: SaiposSaleRecord): number | null {
   const candidates = [
     record?.total,
     record?.total_amount,
@@ -65,7 +65,7 @@ function parseTotalAmount(record: SaiposSaleRecord): Prisma.Decimal | null {
     if (c === undefined || c === null) continue
     const num = typeof c === 'string' ? Number(c.replace(',', '.')) : Number(c)
     if (Number.isFinite(num)) {
-      return new Prisma.Decimal(num.toFixed(2))
+      return Number(num.toFixed(2))
     }
   }
   return null
