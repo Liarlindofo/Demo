@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -227,7 +228,7 @@ export default function ConnectionsPage() {
         <Card className="mt-8 bg-[#141415] border-[#374151] rounded-2xl p-6">
           <h3 className="text-lg font-semibold text-white mb-3">Como Conectar</h3>
           <ol className="space-y-2 text-gray-400">
-            <li>1. Clique em "Gerar QR Code" no WhatsApp desejado</li>
+            <li>1. Clique em &quot;Gerar QR Code&quot; no WhatsApp desejado</li>
             <li>2. Abra o WhatsApp no seu celular</li>
             <li>3. Vá em Mais opções {">"} Aparelhos conectados {">"} Conectar um aparelho</li>
             <li>4. Aponte a câmera para o QR Code exibido</li>
@@ -246,10 +247,13 @@ export default function ConnectionsPage() {
           <div className="flex flex-col items-center justify-center py-6">
             {qrModal.qrCode ? (
               <>
-                <img
+                <Image
                   src={qrModal.qrCode}
                   alt="QR Code"
+                  width={256}
+                  height={256}
                   className="w-64 h-64 bg-white p-4 rounded-lg"
+                  unoptimized
                 />
                 <p className="text-gray-400 mt-4 text-center">
                   Aguardando leitura do QR Code...
