@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id            String    @id @default(cuid())
+  name          String
+  botName       String?
+  storeType     String?
+  basePrompt    String?   @db.Text
+  forbidden     String?   @db.Text
+  messageLimit  Int?      @default(30)
+  contextTime   Int?      @default(60)
+  botEnabled    Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  clientId  String
+  slot      Int
+  status    String   @default("disconnected")
+  qrCode    String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, slot])
+  @@index([clientId])
+}
+
