@@ -11,7 +11,7 @@ import { Loader2, Save, Bot, Clock, Store, MessageSquare, Shield, Hash, Power } 
 import { Switch } from "@/components/ui/switch";
 
 const CLIENT_ID = "your_client_id"; // Substituir pelo clientId real
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://www.platefull.com.br";
 const API_KEY = process.env.NEXT_PUBLIC_DRIN_API_KEY || "";
 
 interface ClientConfig {
